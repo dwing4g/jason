@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- for Apache Ant -->
+<project name="jason" default="jar">
+	<property name="root"         value="."/>
+	<property name="lib"          value="${root}/lib"/>
+	<property name="src"          value="${root}/src"/>
+	<property name="test"         value="${root}/test"/>
+	<property name="classes"      value="${root}/classes"/>
+	<property name="classes_src"  value="${classes}/src"/>
+	<property name="classes_test" value="${classes}/test"/>
+	<tstamp>
+		<format property="time" pattern="yyyy-MM-dd HH:mm:ss:SSS Z"/>
+	</tstamp>
+	<echo message="ant.java.version = ${ant.java.version}"/><!-- 1.8; 9; 10; 11 -->
+
+	<target name="clean">
+		<delete dir="${classes}"/>
+		<delete file="${root}/jason.jar"/>
+		<delete file="${root}/jason-src.jar"/>
+		<delete file="${root}/jason-test.jar"/>
+	</target>
+
+	<target name="compile">
+		<mkdir dir="${classes_src}"/>
+		<mkdir dir="${classes_test}"/>
+		<javac destdir="${classes_src}" encoding="utf-8" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
+			<compilerarg value="-nowarn"/>
+			<compilerarg value="-XDignore.symbol.file"/>
+			<src path="${src}"/>
+		</javac>
+		<javac destdir="${classes_test}" encoding="utf-8" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
+			<compilerarg value="-nowarn"/>
+			<compilerarg value="-XDignore.symbol.file"/>
+			<src path="${src}"/>
+			<src path="${test}"/>
+		</javac>
+	</target>
+
+	<target name="jar" depends="clean, compile">
+		<jar jarfile="${root}/jason.jar" basedir="${classes_src}" level="9">
+			<manifest>
+				<attribute name="Created-Time" value="${time}"/>
+			</manifest>
+		</jar>
+		<jar jarfile="${root}/jason-src.jar" level="9">
+			<manifest>
+				<attribute name="Created-Time" value="${time}"/>
+			</manifest>
+			<fileset dir="${src}/"/>
+		</jar>
+		<jar jarfile="${root}/jason-test.jar" basedir="${classes_test}" level="9">
+			<manifest>
+				<attribute name="Created-Time" value="${time}"/>
+				<attribute name="Main-Class" value="jason.TestJsonParser"/>
+			</manifest>
+		</jar>
+	</target>
+</project>
