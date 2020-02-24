@@ -478,7 +478,7 @@ public final class JsonParser {
 	}
 
 	@SuppressWarnings("unchecked")
-	static <T> T allocObj(Class<T> klass) throws InstantiationException {
+	public static <T> T allocObj(Class<T> klass) throws InstantiationException {
 		return (T) unsafe.allocateInstance(klass);
 	}
 
@@ -576,25 +576,23 @@ public final class JsonParser {
 			pos++;
 			if (b < '"')
 				continue;
-			if (b == '"')
-				jumpStr();
-			else if (c == '{') // [:0x5B | 0x20 = {:0x7B
-				jumpTo(b + 2); // '[''{' => ']''}'
+			if (b == '"') {
+				while ((b = buf[pos++]) != '"')
+					if (b == '\\')
+						pos++;
+			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
+				for (int level = 0; (b = buf[pos++]) != c;) {
+					if (b == '"') {
+						while ((b = buf[pos++]) != '"')
+							if (b == '\\')
+								pos++;
+					} else if ((c = (b | 0x20)) == '}' && --level < 0) // ]:0x5D | 0x20 = }:0x7D
+						break;
+					else if (c == '{') // [:0x5B | 0x20 = {:0x7B
+						level++;
+				}
+			}
 		}
-	}
-
-	void jumpStr() {
-		for (int b; (b = buf[pos++]) != '"';)
-			if (b == '\\')
-				pos++;
-	}
-
-	void jumpTo(int c) {
-		for (int b; (b = buf[pos++]) != c;)
-			if (b == '"')
-				jumpStr();
-			else if ((b | 0x20) == '{') // [:0x5B | 0x20 = {:0x7B
-				jumpTo(b + 2); // '[''{' => ']''}'
 	}
 
 	public Object parse() throws InstantiationException {
