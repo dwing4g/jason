@@ -7,7 +7,7 @@ public final class TestJsonParser {
 		C c;
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InstantiationException {
 		byte[] bytes = "{\"b\":\"xyz\", \"a\":123,\"c\":{\"a\":456,\"b\":\"abc\"}}".getBytes();
 		long v = 0;
 		long t = System.nanoTime();
