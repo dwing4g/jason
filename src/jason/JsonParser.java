@@ -26,11 +26,11 @@ public final class JsonParser {
 	private static final int TYPE_DOUBLE = 8; // double Double
 	private static final int TYPE_STRING = 9; // String
 	private static final int TYPE_VAR = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<O>,HashMap<S,O>)
-	private static final int TYPE_OBJ = 11; // custom type
+	private static final int TYPE_SLICE = 11; // Slice(pos)
+	private static final int TYPE_OBJ = 12; // custom type
 	private static final int TYPE_WRAP_FLAG = 16; // Wrap<1~8>
-	private static final int TYPE_LIST_FLAG = 32; // Collection<1~11>
-	private static final int TYPE_MAP_FLAG = 48; // Map<String, 1~11>
-//	private static final int TYPE_SLICE = 64; //TODO Slice(buf+pos+len)
+	private static final int TYPE_LIST_FLAG = 32; // Collection<1~12>
+	private static final int TYPE_MAP_FLAG = 48; // Map<String, 1~12>
 
 	private static final int KEY_HASH_MULTIPLIER = 0x100_0193; // 1677_7619
 
@@ -323,6 +323,14 @@ public final class JsonParser {
 		}
 	}
 
+	public static class Slice {
+		public int pos;
+
+		public Slice(int p) {
+			pos = p;
+		}
+	}
+
 	static final class FieldMeta {
 		final int type;
 		final long offset;
@@ -352,6 +360,7 @@ public final class JsonParser {
 			typeMap.put(double.class, TYPE_DOUBLE);
 			typeMap.put(String.class, TYPE_STRING);
 			typeMap.put(Object.class, TYPE_VAR);
+			typeMap.put(Slice.class, TYPE_SLICE);
 			typeMap.put(Boolean.class, TYPE_WRAP_FLAG + TYPE_BOOL);
 			typeMap.put(Byte.class, TYPE_WRAP_FLAG + TYPE_BYTE);
 			typeMap.put(Short.class, TYPE_WRAP_FLAG + TYPE_SHORT);
@@ -360,7 +369,6 @@ public final class JsonParser {
 			typeMap.put(Long.class, TYPE_WRAP_FLAG + TYPE_LONG);
 			typeMap.put(Float.class, TYPE_WRAP_FLAG + TYPE_FLOAT);
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
-//			typeMap.put(Slice.class, TYPE_SLICE); //TODO
 		}
 
 		ClassMeta(Class<?> klass) {
@@ -652,6 +660,13 @@ public final class JsonParser {
 			case TYPE_VAR:
 				unsafe.putObject(obj, offset, parse(unsafe.getObject(obj, offset), b));
 				break;
+			case TYPE_SLICE:
+				Slice slice = (Slice) unsafe.getObject(obj, offset);
+				if (slice == null)
+					unsafe.putObject(obj, offset, new Slice(pos));
+				else
+					slice.pos = pos;
+				break;
 			case TYPE_OBJ:
 				if (b != '{')
 					unsafe.putObject(obj, offset, null);
@@ -690,8 +705,6 @@ public final class JsonParser {
 			case TYPE_WRAP_FLAG + TYPE_DOUBLE:
 				unsafe.putObject(obj, offset, b == 'n' ? null : parseDouble());
 				break;
-//			case TYPE_SLICE: //TODO
-//				break;
 			default:
 				int flag = type & 0xf0;
 				if (flag == TYPE_LIST_FLAG) {
@@ -746,6 +759,10 @@ public final class JsonParser {
 					case TYPE_VAR:
 						for (; b != ']'; b = jumpVar())
 							c.add(parse(null, b));
+						break;
+					case TYPE_SLICE:
+						for (; b != ']'; b = jumpVar())
+							c.add(new Slice(pos));
 						break;
 					case TYPE_OBJ:
 						Class<?> subClass = fm.klass;
@@ -847,6 +864,14 @@ public final class JsonParser {
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, parse(null, b));
+						}
+						break;
+					case TYPE_SLICE:
+						for (; b != '}'; b = jumpVar()) {
+							String k = parseStringAuto(b);
+							if (next() == ':')
+								skipNext();
+							m.put(k, new Slice(pos));
 						}
 						break;
 					case TYPE_OBJ:
