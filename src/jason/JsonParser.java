@@ -38,12 +38,12 @@ public final class JsonParser {
 	public static final Double POSITIVE_INFINITY = Double.valueOf(Double.POSITIVE_INFINITY);
 
 	private static final byte[] ESCAPE = { // @formatter:off
-    		' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
-    		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', // 0x3x
-    		'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', // 0x4x
-    		'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[','\\', ']', '^', '_', // 0x5x
-    		'`', 'a','\b', 'c', 'd', 'e','\f', 'g', 'h', 'i', 'j', 'k', 'l', 'm','\n', 'o', // 0x6x
-    		'p', 'q','\r', 's','\t', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '?', // 0x7x
+			' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', // 0x3x
+			'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', // 0x4x
+			'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[','\\', ']', '^', '_', // 0x5x
+			'`', 'a','\b', 'c', 'd', 'e','\f', 'g', 'h', 'i', 'j', 'k', 'l', 'm','\n', 'o', // 0x6x
+			'p', 'q','\r', 's','\t', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '?', // 0x7x
 	}; //@formatter:on
 
 	private static final double[] EXP = { // 1e0...1e308: 309 * 8 bytes = 2472 bytes
@@ -72,14 +72,17 @@ public final class JsonParser {
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
 	public static final class StringPool {
-		public static final int DEFAULT_STRING_POOL_SIZE = 1024;
-		private static String[] strs = new String[DEFAULT_STRING_POOL_SIZE];
+		private static String[] strs = new String[1024];
 
 		public static void reset(int size) {
 			strs = new String[1 << (32 - Integer.numberOfLeadingZeros(size - 1))];
 		}
 
-		public static String intern(byte[] buf, int pos, int end) throws InstantiationException {
+		public static void clear() {
+			Arrays.fill(strs, null);
+		}
+
+		static String intern(byte[] buf, int pos, int end) throws InstantiationException {
 			int len = end - pos;
 			String[] ss = strs;
 			int idx = (int) getKeyHash(buf, pos, end) & (ss.length - 1);
@@ -89,7 +92,7 @@ public final class JsonParser {
 					byte[] b = (byte[]) unsafe.getObject(s, STRING_VALUE_OFFSET);
 					if (b.length == len && Arrays.equals(b, 0, len, buf, pos, end))
 						return s;
-				} else {
+				} else { // for JDK8-
 					int n = s.length();
 					if (n == len) {
 						for (int i = 0;; i++) {
@@ -1104,7 +1107,7 @@ public final class JsonParser {
 		}
 	}
 
-	static double strtod(final double d, final int e) {
+	static double strtod(double d, int e) {
 		return e >= 0 ? d * EXP[e] : (e < -308 ? 0 : d / EXP[-e]);
 	}
 
