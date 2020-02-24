@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 
 public final class JsonParser {
-	private static final Unsafe unsafe;
+	static final Unsafe unsafe;
 	private static final int TYPE_BOOL = 1; // bool Boolean
 	private static final int TYPE_BYTE = 2; // byte Byte
 	private static final int TYPE_SHORT = 3; // short Short
@@ -387,7 +387,7 @@ public final class JsonParser {
 							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
 							if (geneTypes.length == 1 && (geneType = geneTypes[0]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_LIST_FLAG + (v != null ? v : TYPE_OBJ);
+								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_OBJ);
 							} else
 								continue;
 						} else
@@ -399,7 +399,7 @@ public final class JsonParser {
 							if (geneTypes.length == 2 && geneTypes[0] == String.class
 									&& (geneType = geneTypes[1]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_MAP_FLAG + (v != null ? v : TYPE_OBJ);
+								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_OBJ);
 							} else
 								continue;
 						} else
@@ -528,14 +528,13 @@ public final class JsonParser {
 						return b;
 			if ((c = b | 0x20) == '}') // ]:0x5D | 0x20 = }:0x7D
 				return b;
+			pos++;
 			if (b < '"')
-				pos++;
-			else if (b == '"')
+				continue;
+			if (b == '"')
 				jumpStr();
 			else if (c == '{') // [:0x5B | 0x20 = {:0x7B
 				jumpTo(b + 2); // '[''{' => ']''}'
-			else
-				pos++;
 		}
 	}
 
