@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 
 public final class JsonParser {
-	static final Unsafe unsafe;
+	private static final Unsafe unsafe;
 	private static final int TYPE_BOOL = 1; // bool Boolean
 	private static final int TYPE_BYTE = 2; // byte Byte
 	private static final int TYPE_SHORT = 3; // short Short
@@ -70,6 +70,44 @@ public final class JsonParser {
 			1e+275, 1e+276, 1e+277, 1e+278, 1e+279, 1e+280, 1e+281, 1e+282, 1e+283, 1e+284, 1e+285, 1e+286, 1e+287,
 			1e+288, 1e+289, 1e+290, 1e+291, 1e+292, 1e+293, 1e+294, 1e+295, 1e+296, 1e+297, 1e+298, 1e+299, 1e+300,
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
+
+	public static final class StringPool {
+		public static final int DEFAULT_STRING_POOL_SIZE = 1024;
+		private static String[] strs = new String[DEFAULT_STRING_POOL_SIZE];
+
+		public static void reset(int size) {
+			strs = new String[1 << (32 - Integer.numberOfLeadingZeros(size - 1))];
+		}
+
+		public static String intern(byte[] buf, int pos, int end) throws InstantiationException {
+			int len = end - pos;
+			String[] ss = strs;
+			int idx = (int) getKeyHash(buf, pos, end) & (ss.length - 1);
+			String s = ss[idx];
+			if (s != null) {
+				if (STRING_VALUE_OFFSET != 0) { // JDK9+
+					byte[] b = (byte[]) unsafe.getObject(s, STRING_VALUE_OFFSET);
+					if (b.length == len && Arrays.equals(b, 0, len, buf, pos, end))
+						return s;
+				} else {
+					int n = s.length();
+					if (n == len) {
+						for (int i = 0;; i++) {
+							if (i == n)
+								return s;
+							if (s.charAt(i) != (buf[pos + i] & 0xff))
+								break;
+						}
+					}
+				}
+			}
+			ss[idx] = s = newByteString(buf, pos, end);
+			return s;
+		}
+
+		private StringPool() {
+		}
+	}
 
 	static class FieldMetaMap {
 		private static final int PRIME2 = 0xbe1f14b1;
@@ -432,6 +470,10 @@ public final class JsonParser {
 		}
 	}
 
+	public static Unsafe getUnsafe() {
+		return unsafe;
+	}
+
 	@SuppressWarnings("unchecked")
 	static <T> T allocObj(Class<T> klass) throws InstantiationException {
 		return (T) unsafe.allocateInstance(klass);
@@ -561,7 +603,7 @@ public final class JsonParser {
 		switch (b) { //@formatter:off
 		case '{': return parseMap(obj instanceof Map ? (Map<String, Object>) obj : null, b);
 		case '[': return parseArray(obj instanceof Collection ? (Collection<Object>) obj : null, b);
-		case '"': return parseString();
+		case '"': return parseString(false);
 		case '0': case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9': case '-': case '.': return parseNumber();
 		case 'f': return false;
@@ -581,6 +623,7 @@ public final class JsonParser {
 			c = new ArrayList<>();
 		for (b = skipNext(); b != ']'; b = jumpVar())
 			c.add(parse(null, b));
+		pos++;
 		return c;
 	}
 
@@ -599,6 +642,7 @@ public final class JsonParser {
 				b = skipNext();
 			m.put(k, parse(null, b));
 		}
+		pos++;
 		return m;
 	}
 
@@ -654,7 +698,7 @@ public final class JsonParser {
 				unsafe.putDouble(obj, offset, parseDouble());
 				break;
 			case TYPE_STRING:
-				unsafe.putObject(obj, offset, parseString());
+				unsafe.putObject(obj, offset, parseString(false));
 				break;
 			case TYPE_VAR:
 				unsafe.putObject(obj, offset, parse(unsafe.getObject(obj, offset), b));
@@ -753,7 +797,7 @@ public final class JsonParser {
 						break;
 					case TYPE_STRING:
 						for (; b != ']'; b = jumpVar())
-							c.add(parseString());
+							c.add(parseString(false));
 						break;
 					case TYPE_VAR:
 						for (; b != ']'; b = jumpVar())
@@ -772,6 +816,7 @@ public final class JsonParser {
 							c.add(b != '{' ? null : parseObj0(subClass, subClassMeta));
 						break;
 					}
+					pos++;
 				} else if (flag == TYPE_MAP_FLAG) {
 					if (b != '{') {
 						unsafe.putObject(obj, offset, null);
@@ -854,7 +899,7 @@ public final class JsonParser {
 							String k = parseStringAuto(b);
 							if ((b = next()) == ':')
 								b = skipNext();
-							m.put(k, b == 'n' ? null : parseString());
+							m.put(k, b == 'n' ? null : parseString(false));
 						}
 						break;
 					case TYPE_VAR:
@@ -886,6 +931,7 @@ public final class JsonParser {
 						}
 						break;
 					}
+					pos++;
 				}
 			}
 		}
@@ -893,14 +939,23 @@ public final class JsonParser {
 		return obj;
 	}
 
-	public static long getKeyHash(final String str) {
-		final byte[] buf = str.getBytes(StandardCharsets.UTF_8);
-		final int n = buf.length;
+	public static long getKeyHash(String str) {
+		byte[] buf = str.getBytes(StandardCharsets.UTF_8);
+		int n = buf.length;
 		if (n <= 0)
 			return 0;
 		long h = buf[0];
 		for (int i = 1; i < n; i++)
 			h = h * KEY_HASH_MULTIPLIER + buf[i];
+		return h;
+	}
+
+	public static long getKeyHash(byte[] buf, int pos, int end) {
+		if (pos >= end)
+			return 0;
+		long h = buf[pos];
+		while (++pos < end)
+			h = h * KEY_HASH_MULTIPLIER + buf[pos];
 		return h;
 	}
 
@@ -930,7 +985,7 @@ public final class JsonParser {
 	}
 
 	String parseStringAuto(int b) throws InstantiationException {
-		return b == '"' ? parseString() : parseStringNoQuot();
+		return b == '"' ? parseString(true) : parseStringNoQuot();
 	}
 
 	static int parseHex(int b) {
@@ -946,15 +1001,19 @@ public final class JsonParser {
 	}
 
 	public String parseString() throws InstantiationException {
+		return parseString(false);
+	}
+
+	public String parseString(boolean intern) throws InstantiationException {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		if (buffer[p] != '"')
 			return null;
 		final int begin = ++p;
 		for (;; p++) {
-			if ((b = buffer[p]) == '"') {
+			if ((b = buffer[p]) == '"') { // lucky! finished the fast path
 				pos = p + 1;
-				return newByteString(buffer, begin, p); // lucky! finished the fast path
+				return intern ? StringPool.intern(buffer, begin, p) : newByteString(buffer, begin, p);
 			}
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
@@ -1002,8 +1061,8 @@ public final class JsonParser {
 		int p = pos, b;
 		final int begin = p;
 		for (;; p++) {
-			if (((b = buffer[p]) & 0xff) <= ' ' || b == ':')
-				return newByteString(buffer, begin, pos = p); // lucky! finished the fast path
+			if (((b = buffer[p]) & 0xff) <= ' ' || b == ':') // lucky! finished the fast path
+				return StringPool.intern(buffer, begin, pos = p);
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
 		}
