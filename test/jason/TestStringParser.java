@@ -13,7 +13,7 @@ public final class TestStringParser {
 		for (int i = 0; i < 8; i++)
 			tests[i] = strs[i].getBytes(StandardCharsets.UTF_8);
 
-		JsonParser jp = new JsonParser();
+		Jason jp = new Jason();
 		for (int j = 0; j < 8; j++) {
 			String s = jp.buf(tests[j]).parseString();
 			if (!s.equals(chks[j])) {

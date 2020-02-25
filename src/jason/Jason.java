@@ -16,7 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 
 // Compile with JDK9+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
-public final class JsonParser {
+public final class Jason {
 	private static final int TYPE_BOOL = 1; // bool Boolean
 	private static final int TYPE_BYTE = 2; // byte Byte
 	private static final int TYPE_SHORT = 3; // short Short
@@ -27,9 +27,9 @@ public final class JsonParser {
 	private static final int TYPE_DOUBLE = 8; // double Double
 	private static final int TYPE_STRING = 9; // String
 	private static final int TYPE_VAR = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<O>,HashMap<S,O>)
-	private static final int TYPE_SLICE = 11; // Slice(pos)
-	private static final int TYPE_OBJ = 12; // custom type
-	private static final int TYPE_WRAP_FLAG = 0x10; // Wrap<1~8>
+	private static final int TYPE_POS = 11; // Pos(pos)
+	private static final int TYPE_OBJ = 12; // other custom type
+	private static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
 	private static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
 	private static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
 
@@ -73,16 +73,16 @@ public final class JsonParser {
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
 	public interface Identifier {
-		ClassMeta identify(JsonParser jp);
+		ClassMeta identify(Jason jp);
 	}
 
-	public static class Slice {
+	public static class Pos {
 		public int pos;
 
-		public Slice() {
+		public Pos() {
 		}
 
-		public Slice(int p) {
+		public Pos(int p) {
 			pos = p;
 		}
 	}
@@ -371,7 +371,7 @@ public final class JsonParser {
 			typeMap.put(double.class, TYPE_DOUBLE);
 			typeMap.put(String.class, TYPE_STRING);
 			typeMap.put(Object.class, TYPE_VAR);
-			typeMap.put(Slice.class, TYPE_SLICE);
+			typeMap.put(Pos.class, TYPE_POS);
 			typeMap.put(Boolean.class, TYPE_WRAP_FLAG + TYPE_BOOL);
 			typeMap.put(Byte.class, TYPE_WRAP_FLAG + TYPE_BYTE);
 			typeMap.put(Short.class, TYPE_WRAP_FLAG + TYPE_SHORT);
@@ -450,7 +450,7 @@ public final class JsonParser {
 			identifier = iden;
 		}
 
-		ClassMeta identifyClassMeta(JsonParser jp) {
+		ClassMeta identifyClassMeta(Jason jp) {
 			return identifier != null ? identifier.identify(jp) : this;
 		}
 
@@ -465,7 +465,7 @@ public final class JsonParser {
 
 	private static final Unsafe unsafe;
 	private static final long STRING_VALUE_OFFSET;
-	private static final ThreadLocal<JsonParser> jsonParserLocals = ThreadLocal.withInitial(JsonParser::new);
+	private static final ThreadLocal<Jason> jsonParserLocals = ThreadLocal.withInitial(Jason::new);
 	private static final ConcurrentHashMap<Class<?>, ClassMeta> classMetas = new ConcurrentHashMap<>();
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
@@ -492,8 +492,12 @@ public final class JsonParser {
 		return (T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass));
 	}
 
-	public static JsonParser local() {
+	public static Jason local() {
 		return jsonParserLocals.get();
+	}
+
+	public static void removeLocal() {
+		jsonParserLocals.remove();
 	}
 
 	public static ClassMeta getClassMeta(Class<?> klass) {
@@ -543,19 +547,19 @@ public final class JsonParser {
 	private int pos;
 	private char[] tmp; // for parseString & parseStringNoQuot
 
-	public JsonParser() {
+	public Jason() {
 	}
 
-	public JsonParser(byte[] b) {
+	public Jason(byte[] b) {
 		buf = b;
 	}
 
-	public JsonParser(byte[] b, int p) {
+	public Jason(byte[] b, int p) {
 		buf = b;
 		pos = p;
 	}
 
-	public JsonParser reset() {
+	public Jason reset() {
 		buf = null;
 		pos = 0;
 		tmp = null;
@@ -566,13 +570,13 @@ public final class JsonParser {
 		return buf;
 	}
 
-	public JsonParser buf(byte[] b) {
+	public Jason buf(byte[] b) {
 		buf = b;
 		pos = 0;
 		return this;
 	}
 
-	public JsonParser buf(byte[] b, int p) {
+	public Jason buf(byte[] b, int p) {
 		buf = b;
 		pos = p;
 		return this;
@@ -582,8 +586,13 @@ public final class JsonParser {
 		return pos;
 	}
 
-	public JsonParser pos(int p) {
+	public Jason pos(int p) {
 		pos = p;
+		return this;
+	}
+
+	public Jason pos(Pos p) {
+		pos = p.pos;
 		return this;
 	}
 
@@ -591,19 +600,20 @@ public final class JsonParser {
 		return tmp;
 	}
 
-	public JsonParser tmp(char[] t) {
+	public Jason tmp(char[] t) {
 		tmp = t;
 		return this;
 	}
 
-	public JsonParser tmp(int size) {
+	public Jason tmp(int size) {
 		if (tmp == null || tmp.length < size)
 			tmp = new char[size];
 		return this;
 	}
 
-	public void skip(int n) {
+	public Jason skip(int n) {
 		pos += n;
+		return this;
 	}
 
 	public boolean end() {
@@ -638,14 +648,12 @@ public final class JsonParser {
 					if (b == '\\')
 						pos++;
 			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
-				for (int level = 0, d = c + 2; (b = buf[pos++]) != d;) {
+				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0;) { // ]:0x5D | 0x20 = }:0x7D
 					if (b == '"') {
 						while ((b = buf[pos++]) != '"')
 							if (b == '\\')
 								pos++;
-					} else if ((c = (b | 0x20)) == '}' && --level < 0) // ]:0x5D | 0x20 = }:0x7D
-						break;
-					else if (c == '{') // [:0x5B | 0x20 = {:0x7B
+					} else if (b == '{') // [:0x5B | 0x20 = {:0x7B
 						level++;
 				}
 			}
@@ -767,12 +775,12 @@ public final class JsonParser {
 			case TYPE_VAR:
 				unsafe.putObject(obj, offset, parse(unsafe.getObject(obj, offset), b));
 				break;
-			case TYPE_SLICE:
-				Slice slice = (Slice) unsafe.getObject(obj, offset);
-				if (slice == null)
-					unsafe.putObject(obj, offset, new Slice(pos));
+			case TYPE_POS:
+				Pos p = (Pos) unsafe.getObject(obj, offset);
+				if (p == null)
+					unsafe.putObject(obj, offset, new Pos(pos));
 				else
-					slice.pos = pos;
+					p.pos = pos;
 				break;
 			case TYPE_OBJ:
 				if (b != '{')
@@ -877,9 +885,9 @@ public final class JsonParser {
 						for (; b != ']'; b = jumpVar())
 							c.add(parse(null, b));
 						break;
-					case TYPE_SLICE:
+					case TYPE_POS:
 						for (; b != ']'; b = jumpVar())
-							c.add(new Slice(pos));
+							c.add(new Pos(pos));
 						break;
 					case TYPE_OBJ:
 						ClassMeta subClassMeta = fm.classMeta;
@@ -995,12 +1003,12 @@ public final class JsonParser {
 							m.put(k, parse(null, b));
 						}
 						break;
-					case TYPE_SLICE:
+					case TYPE_POS:
 						for (; b != '}'; b = jumpVar()) {
 							String k = parseStringKey(b);
 							if (next() == ':')
 								skipNext();
-							m.put(k, new Slice(pos));
+							m.put(k, new Pos(pos));
 						}
 						break;
 					case TYPE_OBJ:
