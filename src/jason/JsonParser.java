@@ -1,5 +1,6 @@
 package jason;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -347,6 +348,8 @@ public final class JsonParser {
 
 	public static final class ClassMeta extends FieldMetaMap {
 		private static final HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
+		final Class<?> klass;
+		final Constructor<?> ctor;
 		private final FieldMeta[] fieldMetas;
 
 		static {
@@ -372,6 +375,16 @@ public final class JsonParser {
 		}
 
 		ClassMeta(Class<?> klass) {
+			this.klass = klass;
+			Constructor<?> ct = null;
+			for (Constructor<?> c : klass.getDeclaredConstructors()) {
+				if (c.getParameterCount() == 0) {
+					c.setAccessible(true);
+					ct = c;
+					break;
+				}
+			}
+			ctor = ct;
 			ArrayList<Class<?>> classes = new ArrayList<>(2);
 			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
 			for (; klass != Object.class; klass = klass.getSuperclass())
@@ -455,8 +468,9 @@ public final class JsonParser {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T> T allocObj(Class<T> klass) throws InstantiationException {
-		return (T) unsafe.allocateInstance(klass);
+	public static <T> T allocObj(ClassMeta classMeta) throws ReflectiveOperationException {
+		Constructor<?> ctor = classMeta.ctor;
+		return (T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass));
 	}
 
 	public static JsonParser local() {
@@ -478,7 +492,7 @@ public final class JsonParser {
 			Arrays.fill(ss, null);
 	}
 
-	private static String intern(byte[] buf, int pos, int end) throws InstantiationException {
+	private static String intern(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		int len = end - pos;
 		String[] ss = poolStrs;
 		if (ss == null)
@@ -619,12 +633,12 @@ public final class JsonParser {
 		}
 	}
 
-	public Object parse() throws InstantiationException {
+	public Object parse() throws ReflectiveOperationException {
 		return parse(null, next());
 	}
 
 	@SuppressWarnings("unchecked")
-	Object parse(Object obj, int b) throws InstantiationException {
+	Object parse(Object obj, int b) throws ReflectiveOperationException {
 		switch (b) { //@formatter:off
 		case '{': return parseMap(obj instanceof Map ? (Map<String, Object>) obj : null, b);
 		case '[': return parseArray(obj instanceof Collection ? (Collection<Object>) obj : null, b);
@@ -637,11 +651,11 @@ public final class JsonParser {
 		return null;
 	}
 
-	public Collection<Object> parseArray(Collection<Object> c) throws InstantiationException {
+	public Collection<Object> parseArray(Collection<Object> c) throws ReflectiveOperationException {
 		return parseArray(c, next());
 	}
 
-	Collection<Object> parseArray(Collection<Object> c, int b) throws InstantiationException {
+	Collection<Object> parseArray(Collection<Object> c, int b) throws ReflectiveOperationException {
 		if (b != '[')
 			return c;
 		if (c == null)
@@ -652,11 +666,11 @@ public final class JsonParser {
 		return c;
 	}
 
-	public Map<String, Object> parseMap(Map<String, Object> m) throws InstantiationException {
+	public Map<String, Object> parseMap(Map<String, Object> m) throws ReflectiveOperationException {
 		return parseMap(m, next());
 	}
 
-	Map<String, Object> parseMap(Map<String, Object> m, int b) throws InstantiationException {
+	Map<String, Object> parseMap(Map<String, Object> m, int b) throws ReflectiveOperationException {
 		if (b != '{')
 			return m;
 		if (m == null)
@@ -671,25 +685,27 @@ public final class JsonParser {
 		return m;
 	}
 
-	public <T> T parseObject(Class<T> klass) throws InstantiationException {
-		return klass == null || next() != '{' ? null : parseObject0(allocObj(klass), getClassMeta(klass));
+	public <T> T parseObject(Class<T> klass) throws ReflectiveOperationException {
+		ClassMeta classMeta = getClassMeta(klass);
+		return klass == null || next() != '{' ? null : parseObject0(allocObj(classMeta), classMeta);
 	}
 
-	public <T> T parseObject(T obj) throws InstantiationException {
+	public <T> T parseObject(T obj) throws ReflectiveOperationException {
 		return obj == null || next() != '{' ? obj : parseObject0(obj, getClassMeta(obj.getClass()));
 	}
 
-	public <T> T parseObject(Class<T> klass, ClassMeta classMeta) throws InstantiationException {
-		return next() != '{' ? null
-				: parseObject0(allocObj(klass), classMeta != null ? classMeta : getClassMeta(klass));
+	public <T> T parseObject(Class<T> klass, ClassMeta classMeta) throws ReflectiveOperationException {
+		if (classMeta == null)
+			classMeta = getClassMeta(klass);
+		return next() != '{' ? null : parseObject0(allocObj(classMeta), classMeta);
 	}
 
-	public <T> T parseObject(T obj, ClassMeta classMeta) throws InstantiationException {
+	public <T> T parseObject(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
 		return obj == null || next() != '{' ? obj
 				: parseObject0(obj, classMeta != null ? classMeta : getClassMeta(obj.getClass()));
 	}
 
-	<T> T parseObject0(T obj, ClassMeta classMeta) throws InstantiationException {
+	<T> T parseObject0(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
 		for (int b = skipNext(); b != '}'; b = jumpVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot());
 			if (fm == null)
@@ -747,7 +763,7 @@ public final class JsonParser {
 					if (subObj != null)
 						parseObject0(subObj, subClassMeta);
 					else
-						unsafe.putObject(obj, offset, parseObject0(allocObj(fm.klass), subClassMeta));
+						unsafe.putObject(obj, offset, parseObject0(allocObj(subClassMeta), subClassMeta));
 				}
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BOOL:
@@ -839,7 +855,7 @@ public final class JsonParser {
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(subClass);
 						for (; b != ']'; b = jumpVar())
-							c.add(b != '{' ? null : parseObject0(allocObj(subClass), subClassMeta));
+							c.add(b != '{' ? null : parseObject0(allocObj(subClassMeta), subClassMeta));
 						break;
 					}
 					pos++;
@@ -953,7 +969,7 @@ public final class JsonParser {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
-							m.put(k, b == 'n' ? null : parseObject0(allocObj(subClass), subClassMeta));
+							m.put(k, b == 'n' ? null : parseObject0(allocObj(subClassMeta), subClassMeta));
 						}
 						break;
 					}
@@ -1010,7 +1026,7 @@ public final class JsonParser {
 		}
 	}
 
-	String parseStringKey(int b) throws InstantiationException {
+	String parseStringKey(int b) throws ReflectiveOperationException {
 		return b == '"' ? parseString(true) : parseStringNoQuot();
 	}
 
@@ -1018,19 +1034,19 @@ public final class JsonParser {
 		return b <= '9' ? b - '0' : (b | 0x20) - ('a' - 10); // A~F:0x4X | 0x20 = a~z:0x6X
 	}
 
-	static String newByteString(byte[] buf, int pos, int end) throws InstantiationException {
+	static String newByteString(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		if (STRING_VALUE_OFFSET == 0) // for JDK8-
 			return new String(buf, pos, end - pos, StandardCharsets.ISO_8859_1);
-		String str = allocObj(String.class);
+		String str = (String) unsafe.allocateInstance(String.class);
 		unsafe.putObject(str, STRING_VALUE_OFFSET, Arrays.copyOfRange(buf, pos, end)); // for JDK9+
 		return str;
 	}
 
-	public String parseString() throws InstantiationException {
+	public String parseString() throws ReflectiveOperationException {
 		return parseString(false);
 	}
 
-	public String parseString(boolean intern) throws InstantiationException {
+	public String parseString(boolean intern) throws ReflectiveOperationException {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		if (buffer[p] != '"')
@@ -1082,7 +1098,7 @@ public final class JsonParser {
 		}
 	}
 
-	public String parseStringNoQuot() throws InstantiationException {
+	public String parseStringNoQuot() throws ReflectiveOperationException {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		final int begin = p;
