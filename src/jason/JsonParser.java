@@ -2,7 +2,6 @@ package jason;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -93,7 +92,7 @@ public final class JsonParser {
 		final long offset;
 		final String name; // field name
 		final Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
-		ClassMeta classMeta; // for klass, lazy assigned
+		ClassMeta classMeta; // from klass, lazy assigned
 
 		FieldMeta(int type, long offset, String name, Class<?> klass) {
 			this.type = type;
@@ -359,7 +358,7 @@ public final class JsonParser {
 		final Class<?> klass;
 		final Constructor<?> ctor;
 		private final FieldMeta[] fieldMetas;
-		final Identifier identifier;
+		Identifier identifier;
 
 		static {
 			typeMap.put(boolean.class, TYPE_BOOL);
@@ -387,8 +386,12 @@ public final class JsonParser {
 			this.klass = klass;
 			Constructor<?> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
-				if (c.getParameterCount() == 0 && Modifier.isPublic(c.getModifiers())) {
-					ct = c;
+				if (c.getParameterCount() == 0) {
+					try {
+						c.setAccessible(true);
+						ct = c;
+					} catch (Exception e) {
+					}
 					break;
 				}
 			}
@@ -441,18 +444,9 @@ public final class JsonParser {
 				}
 			}
 			fieldMetas = fieldMetaList.toArray(new FieldMeta[fieldMetaList.size()]);
-			Identifier iden = null;
-			for (Method method : klass.getDeclaredMethods()) {
-				if (Modifier.isStatic(method.getModifiers()) && method.getParameterCount() == 0
-						&& Identifier.class.isAssignableFrom(method.getReturnType())) {
-					try {
-						method.setAccessible(true);
-						iden = (Identifier) method.invoke(null);
-						break;
-					} catch (Exception e) {
-					}
-				}
-			}
+		}
+
+		public void setIdentifier(Identifier iden) {
 			identifier = iden;
 		}
 
@@ -711,24 +705,25 @@ public final class JsonParser {
 	}
 
 	public <T> T parse(Class<T> klass) throws ReflectiveOperationException {
-		ClassMeta classMeta = getClassMeta(klass);
+		if (klass == null || next() != '{')
+			return null;
+		ClassMeta classMeta = getClassMeta(klass).identifyClassMeta(this);
+		return parse0(allocObj(classMeta), classMeta);
+	}
+
+	public <T> T parse(ClassMeta classMeta) throws ReflectiveOperationException {
+		if (classMeta == null || next() != '{')
+			return null;
 		classMeta = classMeta.identifyClassMeta(this);
-		return klass == null || next() != '{' ? null : parse0(allocObj(classMeta), classMeta);
+		return parse0(allocObj(classMeta), classMeta);
 	}
 
 	public <T> T parse(T obj) throws ReflectiveOperationException {
 		return obj == null || next() != '{' ? obj : parse0(obj, getClassMeta(obj.getClass()));
 	}
 
-	public <T> T parse(Class<T> klass, ClassMeta classMeta) throws ReflectiveOperationException {
-		if (classMeta == null)
-			classMeta = getClassMeta(klass);
-		classMeta = classMeta.identifyClassMeta(this);
-		return next() != '{' ? null : parse0(allocObj(classMeta), classMeta);
-	}
-
 	public <T> T parse(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
-		return obj == null || next() != '{' ? obj
+		return obj == null || next() != '{' ? obj // fastest but dangerous if obj and classMeta are not matched
 				: parse0(obj, classMeta != null ? classMeta : getClassMeta(obj.getClass()));
 	}
 
@@ -783,13 +778,21 @@ public final class JsonParser {
 				if (b != '{')
 					unsafe.putObject(obj, offset, null);
 				else {
-					ClassMeta subClassMeta = fm.classMeta;
-					if (subClassMeta == null)
-						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 					Object subObj = unsafe.getObject(obj, offset);
-					if (subObj != null)
+					if (subObj != null) {
+						Class<?> subClass = subObj.getClass();
+						ClassMeta subClassMeta;
+						if (subClass == fm.klass) {
+							subClassMeta = fm.classMeta;
+							if (subClassMeta == null)
+								fm.classMeta = subClassMeta = getClassMeta(subClass);
+						} else
+							subClassMeta = getClassMeta(subClass);
 						parse0(subObj, subClassMeta);
-					else {
+					} else {
+						ClassMeta subClassMeta = fm.classMeta;
+						if (subClassMeta == null)
+							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						subClassMeta = subClassMeta.identifyClassMeta(this);
 						unsafe.putObject(obj, offset, parse0(allocObj(subClassMeta), subClassMeta));
 					}
@@ -879,18 +882,21 @@ public final class JsonParser {
 							c.add(new Slice(pos));
 						break;
 					case TYPE_OBJ:
-						Class<?> subClass = fm.klass;
 						ClassMeta subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(subClass);
+							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Identifier identifier = subClassMeta.identifier;
 						if (identifier == null) {
 							for (; b != ']'; b = jumpVar())
 								c.add(b != '{' ? null : parse0(allocObj(subClassMeta), subClassMeta));
 						} else {
 							for (; b != ']'; b = jumpVar()) {
-								ClassMeta newClassMeta = identifier.identify(this);
-								c.add(b != '{' ? null : parse0(allocObj(newClassMeta), newClassMeta));
+								if (b != '{')
+									c.add(null);
+								else {
+									subClassMeta = identifier.identify(this);
+									c.add(parse0(allocObj(subClassMeta), subClassMeta));
+								}
 							}
 						}
 						break;
@@ -998,10 +1004,9 @@ public final class JsonParser {
 						}
 						break;
 					case TYPE_OBJ:
-						Class<?> subClass = fm.klass;
 						ClassMeta subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(subClass);
+							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Identifier identifier = subClassMeta.identifier;
 						if (identifier == null) {
 							for (; b != '}'; b = jumpVar()) {
@@ -1015,8 +1020,12 @@ public final class JsonParser {
 								String k = parseStringKey(b);
 								if ((b = next()) == ':')
 									b = skipNext();
-								ClassMeta newClassMeta = identifier.identify(this);
-								m.put(k, b == 'n' ? null : parse0(allocObj(newClassMeta), newClassMeta));
+								if (b != '{')
+									m.put(k, null);
+								else {
+									subClassMeta = identifier.identify(this);
+									m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
+								}
 							}
 						}
 						break;
