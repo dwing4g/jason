@@ -13,7 +13,7 @@ public final class TestJsonParser {
 		long t = System.nanoTime();
 		JsonParser jp = new JsonParser();
 		for (int i = 0; i < 10_000_000; ++i) {
-			C c = jp.buf(bytes).parseObj(C.class);
+			C c = jp.buf(bytes).parseObject(C.class);
 			v += c.a + c.c.a;
 		}
 		System.out.println(System.nanoTime() - t);

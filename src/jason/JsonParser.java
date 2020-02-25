@@ -14,8 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 
+// Compile with JDK9+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
 public final class JsonParser {
-	private static final Unsafe unsafe;
 	private static final int TYPE_BOOL = 1; // bool Boolean
 	private static final int TYPE_BYTE = 2; // byte Byte
 	private static final int TYPE_SHORT = 3; // short Short
@@ -28,14 +28,14 @@ public final class JsonParser {
 	private static final int TYPE_VAR = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<O>,HashMap<S,O>)
 	private static final int TYPE_SLICE = 11; // Slice(pos)
 	private static final int TYPE_OBJ = 12; // custom type
-	private static final int TYPE_WRAP_FLAG = 16; // Wrap<1~8>
-	private static final int TYPE_LIST_FLAG = 32; // Collection<1~12>
-	private static final int TYPE_MAP_FLAG = 48; // Map<String, 1~12>
+	private static final int TYPE_WRAP_FLAG = 0x10; // Wrap<1~8>
+	private static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
+	private static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
 
 	private static final int KEY_HASH_MULTIPLIER = 0x100_0193; // 1677_7619
 
-	public static final Double NEGATIVE_INFINITY = Double.valueOf(Double.NEGATIVE_INFINITY);
-	public static final Double POSITIVE_INFINITY = Double.valueOf(Double.POSITIVE_INFINITY);
+	private static final Double NEGATIVE_INFINITY = Double.valueOf(Double.NEGATIVE_INFINITY);
+	private static final Double POSITIVE_INFINITY = Double.valueOf(Double.POSITIVE_INFINITY);
 
 	private static final byte[] ESCAPE = { // @formatter:off
 			' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
@@ -71,44 +71,26 @@ public final class JsonParser {
 			1e+288, 1e+289, 1e+290, 1e+291, 1e+292, 1e+293, 1e+294, 1e+295, 1e+296, 1e+297, 1e+298, 1e+299, 1e+300,
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
-	public static final class StringPool {
-		private static String[] strs = new String[1024];
+	public static class Slice {
+		public int pos;
 
-		public static void reset(int size) {
-			strs = new String[1 << (32 - Integer.numberOfLeadingZeros(size - 1))];
+		public Slice(int p) {
+			pos = p;
 		}
+	}
 
-		public static void clear() {
-			Arrays.fill(strs, null);
-		}
+	static final class FieldMeta {
+		final int type;
+		final long offset;
+		final String name; // field name
+		final Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		ClassMeta classMeta; // for klass, lazy assigned
 
-		static String intern(byte[] buf, int pos, int end) throws InstantiationException {
-			int len = end - pos;
-			String[] ss = strs;
-			int idx = (int) getKeyHash(buf, pos, end) & (ss.length - 1);
-			String s = ss[idx];
-			if (s != null) {
-				if (STRING_VALUE_OFFSET != 0) { // JDK9+
-					byte[] b = (byte[]) unsafe.getObject(s, STRING_VALUE_OFFSET);
-					if (b.length == len && Arrays.equals(b, 0, len, buf, pos, end))
-						return s;
-				} else { // for JDK8-
-					int n = s.length();
-					if (n == len) {
-						for (int i = 0;; i++) {
-							if (i == n)
-								return s;
-							if (s.charAt(i) != (buf[pos + i] & 0xff))
-								break;
-						}
-					}
-				}
-			}
-			ss[idx] = s = newByteString(buf, pos, end);
-			return s;
-		}
-
-		private StringPool() {
+		FieldMeta(int type, long offset, String name, Class<?> klass) {
+			this.type = type;
+			this.offset = offset;
+			this.name = name;
+			this.klass = klass;
 		}
 	}
 
@@ -122,7 +104,7 @@ public final class JsonParser {
 		private FieldMeta[] valueTable;
 		private FieldMeta zeroValue;
 		private boolean hasZeroValue;
-		private int pushIterations; // [1,2,4,8,11,16,22,...,4096]
+		private short pushIterations; // [1,2,4,8,11,16,22,...,4096]
 		private int hashShift; // [0,1,...30]
 		private int size;
 		private int capacity; // [1,2,4,8,...,0x4000_0000]
@@ -132,7 +114,7 @@ public final class JsonParser {
 		FieldMetaMap() {
 			int initialCapacity = 16;
 			mask = initialCapacity - 1;
-			pushIterations = Math.max(Math.min(initialCapacity, 8), (int) Math.sqrt(initialCapacity) >> 3);
+			pushIterations = (short) Math.max(Math.min(initialCapacity, 8), (int) Math.sqrt(initialCapacity) >> 3);
 			hashShift = 31 - Integer.numberOfTrailingZeros(initialCapacity);
 			capacity = tableSize = initialCapacity;
 			threshold = (int) Math.ceil(initialCapacity * LOAD_FACTOR);
@@ -157,12 +139,12 @@ public final class JsonParser {
 			if (key == ZERO_KEY)
 				return hasZeroValue ? zeroValue : null;
 			long[] kt = keyTable;
-			int index = (int) key & mask;
-			if (kt[index] != key) {
-				index = hash2(key);
-				if (kt[index] != key) {
-					index = hash3(key);
-					if (kt[index] != key) {
+			int idx = (int) key & mask;
+			if (kt[idx] != key) {
+				idx = hash2(key);
+				if (kt[idx] != key) {
+					idx = hash3(key);
+					if (kt[idx] != key) {
 						for (int i = capacity, n = tableSize; i < n; i++)
 							if (kt[i] == key)
 								return valueTable[i];
@@ -170,7 +152,7 @@ public final class JsonParser {
 					}
 				}
 			}
-			return valueTable[index];
+			return valueTable[idx];
 		}
 
 		FieldMeta put(long key, FieldMeta value) {
@@ -186,25 +168,25 @@ public final class JsonParser {
 
 			long[] kt = keyTable;
 			FieldMeta[] vt = valueTable;
-			int index1 = (int) key & mask;
-			long key1 = kt[index1];
+			int idx1 = (int) key & mask;
+			long key1 = kt[idx1];
 			if (key1 == key) {
-				FieldMeta oldValue = vt[index1];
-				vt[index1] = value;
+				FieldMeta oldValue = vt[idx1];
+				vt[idx1] = value;
 				return oldValue;
 			}
-			int index2 = hash2(key);
-			long key2 = kt[index2];
+			int idx2 = hash2(key);
+			long key2 = kt[idx2];
 			if (key2 == key) {
-				FieldMeta oldValue = vt[index2];
-				vt[index2] = value;
+				FieldMeta oldValue = vt[idx2];
+				vt[idx2] = value;
 				return oldValue;
 			}
-			int index3 = hash3(key);
-			long key3 = kt[index3];
+			int idx3 = hash3(key);
+			long key3 = kt[idx3];
 			if (key3 == key) {
-				FieldMeta oldValue = vt[index3];
-				vt[index3] = value;
+				FieldMeta oldValue = vt[idx3];
+				vt[idx3] = value;
 				return oldValue;
 			}
 
@@ -217,20 +199,20 @@ public final class JsonParser {
 			}
 
 			if (key1 == ZERO_KEY) {
-				kt[index1] = key;
-				vt[index1] = value;
+				kt[idx1] = key;
+				vt[idx1] = value;
 				size++;
 				return null;
 			}
 			if (key2 == ZERO_KEY) {
-				kt[index2] = key;
-				vt[index2] = value;
+				kt[idx2] = key;
+				vt[idx2] = value;
 				size++;
 				return null;
 			}
 			if (key3 == ZERO_KEY) {
-				kt[index3] = key;
-				vt[index3] = value;
+				kt[idx3] = key;
+				vt[idx3] = value;
 				size++;
 				return null;
 			}
@@ -239,13 +221,12 @@ public final class JsonParser {
 				resize(capacity << 1);
 				return put(key, value);
 			}
-			if (push(key, value, index1, key1, index2, key2, index3, key3))
+			if (push(key, value, idx1, key1, idx2, key2, idx3, key3))
 				size++;
 			return null;
 		}
 
-		boolean push(long insertKey, FieldMeta insertValue, int index1, long key1, int index2, long key2, int index3,
-				long key3) {
+		boolean push(long newKey, FieldMeta newValue, int idx1, long key1, int idx2, long key2, int idx3, long key3) {
 			long[] kt = keyTable;
 			FieldMeta[] vt = valueTable;
 			int m = mask;
@@ -256,49 +237,49 @@ public final class JsonParser {
 				switch (rand.nextInt(3)) {
 				case 0:
 					evictedKey = key1;
-					evictedValue = vt[index1];
-					kt[index1] = insertKey;
-					vt[index1] = insertValue;
+					evictedValue = vt[idx1];
+					kt[idx1] = newKey;
+					vt[idx1] = newValue;
 					break;
 				case 1:
 					evictedKey = key2;
-					evictedValue = vt[index2];
-					kt[index2] = insertKey;
-					vt[index2] = insertValue;
+					evictedValue = vt[idx2];
+					kt[idx2] = newKey;
+					vt[idx2] = newValue;
 					break;
 				default:
 					evictedKey = key3;
-					evictedValue = vt[index3];
-					kt[index3] = insertKey;
-					vt[index3] = insertValue;
+					evictedValue = vt[idx3];
+					kt[idx3] = newKey;
+					vt[idx3] = newValue;
 					break;
 				}
 
-				index1 = (int) evictedKey & m;
-				key1 = kt[index1];
+				idx1 = (int) evictedKey & m;
+				key1 = kt[idx1];
 				if (key1 == ZERO_KEY) {
-					kt[index1] = evictedKey;
-					vt[index1] = evictedValue;
+					kt[idx1] = evictedKey;
+					vt[idx1] = evictedValue;
 					return true;
 				}
-				index2 = hash2(evictedKey);
-				key2 = kt[index2];
+				idx2 = hash2(evictedKey);
+				key2 = kt[idx2];
 				if (key2 == ZERO_KEY) {
-					kt[index2] = evictedKey;
-					vt[index2] = evictedValue;
+					kt[idx2] = evictedKey;
+					vt[idx2] = evictedValue;
 					return true;
 				}
-				index3 = hash3(evictedKey);
-				key3 = kt[index3];
+				idx3 = hash3(evictedKey);
+				key3 = kt[idx3];
 				if (key3 == ZERO_KEY) {
-					kt[index3] = evictedKey;
-					vt[index3] = evictedValue;
+					kt[idx3] = evictedKey;
+					vt[idx3] = evictedValue;
 					return true;
 				}
 				if (++i == pis)
 					break;
-				insertKey = evictedKey;
-				insertValue = evictedValue;
+				newKey = evictedKey;
+				newValue = evictedValue;
 			}
 
 			if (tableSize == kt.length) {
@@ -306,9 +287,9 @@ public final class JsonParser {
 				put(evictedKey, evictedValue);
 				return false;
 			}
-			int index = tableSize++;
-			kt[index] = evictedKey;
-			vt[index] = evictedValue;
+			int idx = tableSize++;
+			kt[idx] = evictedKey;
+			vt[idx] = evictedValue;
 			return true;
 		}
 
@@ -316,7 +297,7 @@ public final class JsonParser {
 		{
 			int oldEndIndex = tableSize;
 			mask = newCapacity - 1;
-			pushIterations = Math.max(Math.min(newCapacity, 8), (int) Math.sqrt(newCapacity) >> 3);
+			pushIterations = (short) Math.max(Math.min(newCapacity, 8), (int) Math.sqrt(newCapacity) >> 3);
 			hashShift = 31 - Integer.numberOfTrailingZeros(newCapacity);
 			capacity = tableSize = newCapacity;
 			threshold = (int) Math.ceil(newCapacity * LOAD_FACTOR);
@@ -336,59 +317,37 @@ public final class JsonParser {
 				if (key == ZERO_KEY)
 					continue;
 				FieldMeta value = oldValueTable[i];
-				int index1 = (int) key & mask;
-				long key1 = kt[index1];
+				int idx1 = (int) key & mask;
+				long key1 = kt[idx1];
 				if (key1 == ZERO_KEY) {
-					kt[index1] = key;
-					vt[index1] = value;
+					kt[idx1] = key;
+					vt[idx1] = value;
 					continue;
 				}
-				int index2 = hash2(key);
-				long key2 = kt[index2];
+				int idx2 = hash2(key);
+				long key2 = kt[idx2];
 				if (key2 == ZERO_KEY) {
-					kt[index2] = key;
-					vt[index2] = value;
+					kt[idx2] = key;
+					vt[idx2] = value;
 					continue;
 				}
-				int index3 = hash3(key);
-				long key3 = kt[index3];
+				int idx3 = hash3(key);
+				long key3 = kt[idx3];
 				if (key3 == ZERO_KEY) {
-					kt[index3] = key;
-					vt[index3] = value;
+					kt[idx3] = key;
+					vt[idx3] = value;
 					continue;
 				}
-				push(key, value, index1, key1, index2, key2, index3, key3);
+				push(key, value, idx1, key1, idx2, key2, idx3, key3);
 				kt = keyTable;
 				vt = valueTable;
 			}
 		}
 	}
 
-	public static class Slice {
-		public int pos;
-
-		public Slice(int p) {
-			pos = p;
-		}
-	}
-
-	static final class FieldMeta {
-		final int type;
-		final long offset;
-		final String name; // field name
-		final Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
-		ClassMeta classMeta; // for klass, lazy assigned
-
-		FieldMeta(int type, long offset, String name, Class<?> klass) {
-			this.type = type;
-			this.offset = offset;
-			this.name = name;
-			this.klass = klass;
-		}
-	}
-
 	public static final class ClassMeta extends FieldMetaMap {
 		private static final HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
+		private final FieldMeta[] fieldMetas;
 
 		static {
 			typeMap.put(boolean.class, TYPE_BOOL);
@@ -413,7 +372,12 @@ public final class JsonParser {
 		}
 
 		ClassMeta(Class<?> klass) {
-			for (; klass != Object.class; klass = klass.getSuperclass()) {
+			ArrayList<Class<?>> classes = new ArrayList<>(2);
+			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
+			for (; klass != Object.class; klass = klass.getSuperclass())
+				classes.add(klass);
+			for (int i = classes.size() - 1; i >= 0; i--) {
+				klass = classes.get(i);
 				for (Field field : klass.getDeclaredFields()) {
 					if (Modifier.isStatic(field.getModifiers()))
 						continue;
@@ -448,18 +412,31 @@ public final class JsonParser {
 					} else
 						type = TYPE_OBJ;
 					String name = field.getName();
-					FieldMeta oldFieldMeta = put(getKeyHash(name),
-							new FieldMeta(type, unsafe.objectFieldOffset(field), name, fieldClass));
+					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
+					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
 					if (oldFieldMeta != null)
 						throw new IllegalStateException("conflicted field name: " + oldFieldMeta.name + " & " + name);
+					fieldMetaList.add(fieldMeta);
 				}
 			}
+			fieldMetas = fieldMetaList.toArray(new FieldMeta[fieldMetaList.size()]);
+		}
+
+		int size() {
+			return fieldMetas.length;
+		}
+
+		FieldMeta get(int idx) {
+			return fieldMetas[idx];
 		}
 	}
 
+	private static final Unsafe unsafe;
+	private static final long STRING_VALUE_OFFSET;
 	private static final ThreadLocal<JsonParser> jsonParserLocals = ThreadLocal.withInitial(JsonParser::new);
 	private static final ConcurrentHashMap<Class<?>, ClassMeta> classMetas = new ConcurrentHashMap<>();
-	private static final long STRING_VALUE_OFFSET;
+	private static String[] poolStrs;
+	private static int poolSize = 1024;
 
 	static {
 		try {
@@ -488,6 +465,45 @@ public final class JsonParser {
 
 	public static ClassMeta getClassMeta(Class<?> klass) {
 		return classMetas.computeIfAbsent(klass, ClassMeta::new);
+	}
+
+	public static void resetStringPool(int size) {
+		poolSize = 1 << (32 - Integer.numberOfLeadingZeros(size - 1));
+		poolStrs = null;
+	}
+
+	public static void clearStringPool() {
+		String[] ss = poolStrs;
+		if (ss != null)
+			Arrays.fill(ss, null);
+	}
+
+	private static String intern(byte[] buf, int pos, int end) throws InstantiationException {
+		int len = end - pos;
+		String[] ss = poolStrs;
+		if (ss == null)
+			poolStrs = ss = new String[poolSize];
+		int idx = (int) getKeyHash(buf, pos, end) & (ss.length - 1);
+		String s = ss[idx];
+		if (s != null) {
+			if (STRING_VALUE_OFFSET != 0) { // JDK9+
+				byte[] b = (byte[]) unsafe.getObject(s, STRING_VALUE_OFFSET);
+				if (b.length == len && Arrays.equals(b, 0, len, buf, pos, end))
+					return s;
+			} else { // for JDK8-
+				int n = s.length();
+				if (n == len) {
+					for (int i = 0;; i++) {
+						if (i == n)
+							return s;
+						if (s.charAt(i) != (buf[pos + i] & 0xff))
+							break;
+					}
+				}
+			}
+		}
+		ss[idx] = s = newByteString(buf, pos, end);
+		return s;
 	}
 
 	private byte[] buf;
@@ -553,19 +569,27 @@ public final class JsonParser {
 		return this;
 	}
 
-	int next() {
+	public void skip(int n) {
+		pos += n;
+	}
+
+	public boolean end() {
+		return pos >= buf.length;
+	}
+
+	public int next() {
 		for (int b;; pos++)
 			if ((b = buf[pos] & 0xff) > ' ')
 				return b;
 	}
 
-	int skipNext() {
+	public int skipNext() {
 		for (int b;;)
 			if ((b = buf[++pos] & 0xff) > ' ')
 				return b;
 	}
 
-	int jumpVar() {
+	public int jumpVar() {
 		for (int b, c;;) {
 			if ((b = buf[pos]) == ',')
 				for (;;)
@@ -638,7 +662,7 @@ public final class JsonParser {
 		if (m == null)
 			m = new HashMap<>();
 		for (b = skipNext(); b != '}'; b = jumpVar()) {
-			String k = parseStringAuto(b);
+			String k = parseStringKey(b);
 			if ((b = next()) == ':')
 				b = skipNext();
 			m.put(k, parse(null, b));
@@ -647,24 +671,25 @@ public final class JsonParser {
 		return m;
 	}
 
-	public <T> T parseObj(Class<T> klass) throws InstantiationException {
-		return klass == null || next() != '{' ? null : parseObj0(allocObj(klass), getClassMeta(klass));
+	public <T> T parseObject(Class<T> klass) throws InstantiationException {
+		return klass == null || next() != '{' ? null : parseObject0(allocObj(klass), getClassMeta(klass));
 	}
 
-	public <T> T parseObj(T obj) throws InstantiationException {
-		return obj == null || next() != '{' ? obj : parseObj0(obj, getClassMeta(obj.getClass()));
+	public <T> T parseObject(T obj) throws InstantiationException {
+		return obj == null || next() != '{' ? obj : parseObject0(obj, getClassMeta(obj.getClass()));
 	}
 
-	public <T> T parseObj(Class<T> klass, ClassMeta classMeta) throws InstantiationException {
-		return next() != '{' ? null : parseObj0(allocObj(klass), classMeta != null ? classMeta : getClassMeta(klass));
+	public <T> T parseObject(Class<T> klass, ClassMeta classMeta) throws InstantiationException {
+		return next() != '{' ? null
+				: parseObject0(allocObj(klass), classMeta != null ? classMeta : getClassMeta(klass));
 	}
 
-	public <T> T parseObj(T obj, ClassMeta classMeta) throws InstantiationException {
+	public <T> T parseObject(T obj, ClassMeta classMeta) throws InstantiationException {
 		return obj == null || next() != '{' ? obj
-				: parseObj0(obj, classMeta != null ? classMeta : getClassMeta(obj.getClass()));
+				: parseObject0(obj, classMeta != null ? classMeta : getClassMeta(obj.getClass()));
 	}
 
-	<T> T parseObj0(T obj, ClassMeta classMeta) throws InstantiationException {
+	<T> T parseObject0(T obj, ClassMeta classMeta) throws InstantiationException {
 		for (int b = skipNext(); b != '}'; b = jumpVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot());
 			if (fm == null)
@@ -720,9 +745,9 @@ public final class JsonParser {
 						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 					Object subObj = unsafe.getObject(obj, offset);
 					if (subObj != null)
-						parseObj0(subObj, subClassMeta);
+						parseObject0(subObj, subClassMeta);
 					else
-						unsafe.putObject(obj, offset, parseObj0(allocObj(fm.klass), subClassMeta));
+						unsafe.putObject(obj, offset, parseObject0(allocObj(fm.klass), subClassMeta));
 				}
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BOOL:
@@ -814,7 +839,7 @@ public final class JsonParser {
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(subClass);
 						for (; b != ']'; b = jumpVar())
-							c.add(b != '{' ? null : parseObj0(subClass, subClassMeta));
+							c.add(b != '{' ? null : parseObject0(subClass, subClassMeta));
 						break;
 					}
 					pos++;
@@ -833,7 +858,7 @@ public final class JsonParser {
 					switch (type & 0xf) {
 					case TYPE_BOOL:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : b == 't');
@@ -841,7 +866,7 @@ public final class JsonParser {
 						break;
 					case TYPE_BYTE:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : (byte) parseInt());
@@ -849,7 +874,7 @@ public final class JsonParser {
 						break;
 					case TYPE_SHORT:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : (short) parseInt());
@@ -857,7 +882,7 @@ public final class JsonParser {
 						break;
 					case TYPE_CHAR:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : (char) parseInt());
@@ -865,7 +890,7 @@ public final class JsonParser {
 						break;
 					case TYPE_INT:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : parseInt());
@@ -873,7 +898,7 @@ public final class JsonParser {
 						break;
 					case TYPE_LONG:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : parseLong());
@@ -881,7 +906,7 @@ public final class JsonParser {
 						break;
 					case TYPE_FLOAT:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : (float) parseDouble());
@@ -889,7 +914,7 @@ public final class JsonParser {
 						break;
 					case TYPE_DOUBLE:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : parseDouble());
@@ -897,7 +922,7 @@ public final class JsonParser {
 						break;
 					case TYPE_STRING:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : parseString(false));
@@ -905,7 +930,7 @@ public final class JsonParser {
 						break;
 					case TYPE_VAR:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, parse(null, b));
@@ -913,7 +938,7 @@ public final class JsonParser {
 						break;
 					case TYPE_SLICE:
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if (next() == ':')
 								skipNext();
 							m.put(k, new Slice(pos));
@@ -925,10 +950,10 @@ public final class JsonParser {
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(subClass);
 						for (; b != '}'; b = jumpVar()) {
-							String k = parseStringAuto(b);
+							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
-							m.put(k, b == 'n' ? null : parseObj0(subClass, subClassMeta));
+							m.put(k, b == 'n' ? null : parseObject0(subClass, subClassMeta));
 						}
 						break;
 					}
@@ -985,7 +1010,7 @@ public final class JsonParser {
 		}
 	}
 
-	String parseStringAuto(int b) throws InstantiationException {
+	String parseStringKey(int b) throws InstantiationException {
 		return b == '"' ? parseString(true) : parseStringNoQuot();
 	}
 
@@ -1014,7 +1039,7 @@ public final class JsonParser {
 		for (;; p++) {
 			if ((b = buffer[p]) == '"') { // lucky! finished the fast path
 				pos = p + 1;
-				return intern ? StringPool.intern(buffer, begin, p) : newByteString(buffer, begin, p);
+				return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
 			}
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
@@ -1063,7 +1088,7 @@ public final class JsonParser {
 		final int begin = p;
 		for (;; p++) {
 			if (((b = buffer[p]) & 0xff) <= ' ' || b == ':') // lucky! finished the fast path
-				return StringPool.intern(buffer, begin, pos = p);
+				return intern(buffer, begin, pos = p);
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
 		}
