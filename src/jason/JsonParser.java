@@ -605,7 +605,7 @@ public final class JsonParser {
 					if (b == '\\')
 						pos++;
 			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
-				for (int level = 0; (b = buf[pos++]) != c;) {
+				for (int level = 0, d = c + 2; (b = buf[pos++]) != d;) {
 					if (b == '"') {
 						while ((b = buf[pos++]) != '"')
 							if (b == '\\')
@@ -839,7 +839,7 @@ public final class JsonParser {
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(subClass);
 						for (; b != ']'; b = jumpVar())
-							c.add(b != '{' ? null : parseObject0(subClass, subClassMeta));
+							c.add(b != '{' ? null : parseObject0(allocObj(subClass), subClassMeta));
 						break;
 					}
 					pos++;
@@ -953,7 +953,7 @@ public final class JsonParser {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
-							m.put(k, b == 'n' ? null : parseObject0(subClass, subClassMeta));
+							m.put(k, b == 'n' ? null : parseObject0(allocObj(subClass), subClassMeta));
 						}
 						break;
 					}
