@@ -378,8 +378,7 @@ public final class JsonParser {
 			this.klass = klass;
 			Constructor<?> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
-				if (c.getParameterCount() == 0) {
-					c.setAccessible(true);
+				if (c.getParameterCount() == 0 && Modifier.isPublic(c.getModifiers())) {
 					ct = c;
 					break;
 				}
