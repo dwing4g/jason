@@ -711,14 +711,14 @@ public final class Jason {
 		if (klass == null || next() != '{')
 			return null;
 		ClassMeta classMeta = getClassMeta(klass).identifyClassMeta(this);
-		return parse0(allocObj(classMeta), classMeta);
+		return classMeta != null ? parse0(allocObj(classMeta), classMeta) : null;
 	}
 
 	public <T> T parse(ClassMeta classMeta) throws ReflectiveOperationException {
 		if (classMeta == null || next() != '{')
 			return null;
 		classMeta = classMeta.identifyClassMeta(this);
-		return parse0(allocObj(classMeta), classMeta);
+		return classMeta != null ? parse0(allocObj(classMeta), classMeta) : null;
 	}
 
 	public <T> T parse(T obj) throws ReflectiveOperationException {
@@ -797,7 +797,8 @@ public final class Jason {
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						subClassMeta = subClassMeta.identifyClassMeta(this);
-						unsafe.putObject(obj, offset, parse0(allocObj(subClassMeta), subClassMeta));
+						unsafe.putObject(obj, offset,
+								subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta) : null);
 					}
 				}
 				break;
@@ -898,7 +899,7 @@ public final class Jason {
 									c.add(null);
 								else {
 									subClassMeta = identifier.identify(this);
-									c.add(parse0(allocObj(subClassMeta), subClassMeta));
+									c.add(subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta) : null);
 								}
 							}
 						}
@@ -1027,7 +1028,8 @@ public final class Jason {
 									m.put(k, null);
 								else {
 									subClassMeta = identifier.identify(this);
-									m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
+									m.put(k, subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta)
+											: null);
 								}
 							}
 						}

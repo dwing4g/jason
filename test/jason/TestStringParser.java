@@ -13,9 +13,9 @@ public final class TestStringParser {
 		for (int i = 0; i < 8; i++)
 			tests[i] = strs[i].getBytes(StandardCharsets.UTF_8);
 
-		Jason jp = new Jason();
+		Jason jason = new Jason();
 		for (int j = 0; j < 8; j++) {
-			String s = jp.buf(tests[j]).parseString();
+			String s = jason.buf(tests[j]).parseString();
 			if (!s.equals(chks[j])) {
 				System.err.println("ERROR! j=" + j + ':');
 				for (int i = 0; i < s.length(); i++)
@@ -30,7 +30,7 @@ public final class TestStringParser {
 		long r = 0;
 		for (int i = 0; i < 2_000_000; i++)
 			for (int j = 0; j < 8; j++)
-				r += jp.buf(tests[j]).parseString().length();
+				r += jason.buf(tests[j]).parseString().length();
 		System.out.println(r); // 102000000
 	}
 }
