@@ -656,7 +656,7 @@ public final class Jason {
 		for (int b, c;;) {
 			if ((b = buf[pos]) == ',')
 				for (;;)
-					if ((b = buf[++pos] & 0xff) > ' ' && b != ',')
+					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) // (b & 0xff) > ' ' && b != ','
 						return b;
 			if ((c = b | 0x20) == '}') // ]:0x5D | 0x20 = }:0x7D
 				return b;
@@ -669,7 +669,7 @@ public final class Jason {
 						pos++;
 			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
 				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0;) { // ]:0x5D | 0x20 = }:0x7D
-					if (b == '"') {
+					if (b == '"') { // '"' = 0x22
 						while ((b = buf[pos++]) != '"')
 							if (b == '\\')
 								pos++;
@@ -1085,22 +1085,26 @@ public final class Jason {
 		int b = buf[pos++];
 		if (b == '"')
 			return 0;
+		if (b == '\\')
+			b = buf[pos++];
 		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
-			if (b == '\\')
-				h = h * m + buf[pos++];
 			if ((b = buf[pos++]) == '"')
 				return h;
+			if (b == '\\')
+				b = buf[pos++];
 		}
 	}
 
 	int parseKeyHashNoQuot(int b) {
 		if (b == ':')
 			return 0;
+		if (b == '\\')
+			b = buf[++pos];
 		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
-			if (b == '\\')
-				h = h * m + buf[++pos];
-			if (((b = buf[++pos]) & 0xff) <= ' ' || b == ':')
+			if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
 				return h;
+			if (b == '\\')
+				b = buf[++pos];
 		}
 	}
 
@@ -1134,8 +1138,8 @@ public final class Jason {
 			return null;
 		final int begin = ++p;
 		for (;; p++) {
-			if ((b = buffer[p]) == '"') { // lucky! finished the fast path
-				pos = p + 1;
+			if ((b = buffer[p]) == '"') {
+				pos = p + 1; // lucky! finished the fast path
 				return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
 			}
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
@@ -1184,13 +1188,13 @@ public final class Jason {
 		int p = pos, b;
 		final int begin = p;
 		for (;; p++) {
-			if (((b = buffer[p]) & 0xff) <= ' ' || b == ':') // lucky! finished the fast path
-				return intern(buffer, begin, pos = p);
+			if (((((b = buffer[p]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
+				return intern(buffer, begin, pos = p); // lucky! finished the fast path
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
 		}
 		int len = p - begin, n = len, c, d;
-		for (; ((b = buffer[p++]) & 0xff) > ' ' && b != ':'; len++)
+		for (; ((((b = buffer[p++]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) > 0; len++) // (b & 0xff) > ' ' && b != ':'
 			if (b == '\\' && buffer[p++] == 'u')
 				p += 4;
 		char[] t = tmp;
@@ -1200,7 +1204,7 @@ public final class Jason {
 		for (int i = 0; i < n;)
 			t[i++] = (char) (buffer[p++] & 0xff);
 		for (;;) {
-			if ((b = buffer[p++] & 0xff) <= ' ' || b == ':') {
+			if (((((b = buffer[p++]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) { // (b & 0xff) <= ' ' || b == ':'
 				pos = p;
 				return new String(t, 0, n);
 			}
