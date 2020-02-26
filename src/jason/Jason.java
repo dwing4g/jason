@@ -459,6 +459,12 @@ public final class Jason {
 			parser = p;
 		}
 
+		@SuppressWarnings("unchecked")
+		@Deprecated
+		public void setParserUnsafe(Parser<?> p) { // DANGEROUS! only for special purpose
+			parser = (Parser<T>) p;
+		}
+
 		int size() {
 			return fieldMetas.length;
 		}
