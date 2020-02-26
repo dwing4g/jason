@@ -23,12 +23,17 @@
 	<target name="compile">
 		<mkdir dir="${classes_src}"/>
 		<mkdir dir="${classes_test}"/>
-		<javac destdir="${classes_src}" encoding="utf-8" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
+		<path id="classpath">
+			<fileset dir="${lib}">
+				<include name="*.jar"/>
+			</fileset>
+		</path>
+		<javac destdir="${classes_src}" encoding="utf-8" classpathref="classpath" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
 			<compilerarg value="-nowarn"/>
 			<compilerarg value="-XDignore.symbol.file"/>
 			<src path="${src}"/>
 		</javac>
-		<javac destdir="${classes_test}" encoding="utf-8" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
+		<javac destdir="${classes_test}" encoding="utf-8" classpathref="classpath" source="1.8" target="1.8" debug="on" debuglevel="lines,vars,source" includeantruntime="false">
 			<compilerarg value="-nowarn"/>
 			<compilerarg value="-XDignore.symbol.file"/>
 			<src path="${src}"/>

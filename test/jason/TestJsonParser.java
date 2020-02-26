@@ -14,6 +14,8 @@ public final class TestJsonParser {
 		Jason jason = new Jason();
 		for (int i = 0; i < 10_000_000; ++i) {
 			C c = jason.buf(bytes).parse(C.class);
+			if (c == null)
+				throw new RuntimeException();
 			v += c.a + c.c.a;
 		}
 		System.out.println(System.nanoTime() - t);

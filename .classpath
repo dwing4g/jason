@@ -7,5 +7,6 @@
 			<attribute name="module" value="true"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="lib/org.eclipse.jdt.annotation_2.2.400.v20191120-1313.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

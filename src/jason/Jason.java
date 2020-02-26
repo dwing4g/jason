@@ -15,6 +15,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+
 // Compile with JDK9+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
 public final class Jason {
 	private static final int TYPE_BOOLEAN = 1; // boolean Boolean
@@ -35,8 +38,8 @@ public final class Jason {
 
 	private static final int KEY_HASH_MULTIPLIER = 0x100_0193; // 1677_7619
 
-	private static final Double NEGATIVE_INFINITY = Double.valueOf(Double.NEGATIVE_INFINITY);
-	private static final Double POSITIVE_INFINITY = Double.valueOf(Double.POSITIVE_INFINITY);
+	private static final @NonNull Double NEGATIVE_INFINITY = ensureNonNull(Double.valueOf(Double.NEGATIVE_INFINITY));
+	private static final @NonNull Double POSITIVE_INFINITY = ensureNonNull(Double.valueOf(Double.POSITIVE_INFINITY));
 
 	private static final byte[] ESCAPE = { // @formatter:off
 			' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
@@ -73,10 +76,13 @@ public final class Jason {
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
 	public interface Parser<T> {
-		T parse(Jason jason, ClassMeta<T> classMeta, T obj) throws ReflectiveOperationException;
+		@Nullable
+		T parse(@NonNull Jason jason, @NonNull ClassMeta<T> classMeta, @Nullable T obj)
+				throws ReflectiveOperationException;
 
 		@SuppressWarnings("unchecked")
-		default T parse0(Jason jason, ClassMeta<?> classMeta, Object obj) throws ReflectiveOperationException {
+		default @Nullable T parse0(@NonNull Jason jason, @NonNull ClassMeta<?> classMeta, @Nullable Object obj)
+				throws ReflectiveOperationException {
 			return parse(jason, (ClassMeta<T>) classMeta, (T) obj);
 		}
 	}
@@ -95,11 +101,12 @@ public final class Jason {
 	static final class FieldMeta {
 		final int type;
 		final long offset;
-		final String name; // field name
-		final Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		final @NonNull String name; // field name
+		final @NonNull Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		@Nullable
 		ClassMeta<?> classMeta; // from klass, lazy assigned
 
-		FieldMeta(int type, long offset, String name, Class<?> klass) {
+		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass) {
 			this.type = type;
 			this.offset = offset;
 			this.name = name;
@@ -115,7 +122,7 @@ public final class Jason {
 		private int mask; // [0,0x3fff_ffff]
 		private long[] keyTable;
 		private FieldMeta[] valueTable;
-		private FieldMeta zeroValue;
+		private @Nullable FieldMeta zeroValue;
 		private boolean hasZeroValue;
 		private int pushIterations; // [1,2,4,8,11,16,22,...,4096]
 		private int hashShift; // [0,1,...30]
@@ -148,6 +155,7 @@ public final class Jason {
 			return (h ^ (h >>> hashShift)) & mask;
 		}
 
+		@Nullable
 		FieldMeta get(long key) {
 			if (key == ZERO_KEY)
 				return hasZeroValue ? zeroValue : null;
@@ -168,7 +176,8 @@ public final class Jason {
 			return valueTable[idx];
 		}
 
-		FieldMeta put(long key, FieldMeta value) {
+		@Nullable
+		FieldMeta put(long key, @Nullable FieldMeta value) {
 			if (key == ZERO_KEY) {
 				FieldMeta oldValue = zeroValue;
 				zeroValue = value;
@@ -239,7 +248,8 @@ public final class Jason {
 			return null;
 		}
 
-		boolean push(long newKey, FieldMeta newValue, int idx1, long key1, int idx2, long key2, int idx3, long key3) {
+		boolean push(long newKey, @Nullable FieldMeta newValue, int idx1, long key1, int idx2, long key2, int idx3,
+				long key3) {
 			long[] kt = keyTable;
 			FieldMeta[] vt = valueTable;
 			int m = mask;
@@ -358,10 +368,11 @@ public final class Jason {
 	}
 
 	public static final class ClassMeta<T> extends FieldMetaMap {
-		private static final HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
-		final Class<T> klass;
-		final Constructor<T> ctor;
+		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
+		final @NonNull Class<T> klass;
+		final @Nullable Constructor<T> ctor;
 		private final FieldMeta[] fieldMetas;
+		@Nullable
 		Parser<T> parser; // user custom parser
 
 		static {
@@ -387,7 +398,7 @@ public final class Jason {
 		}
 
 		@SuppressWarnings("unchecked")
-		ClassMeta(Class<?> klass) {
+		ClassMeta(@NonNull Class<?> klass) {
 			this.klass = (Class<T>) klass;
 			Constructor<?> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
@@ -401,16 +412,16 @@ public final class Jason {
 				}
 			}
 			ctor = (Constructor<T>) ct;
-			ArrayList<Class<?>> classes = new ArrayList<>(2);
+			ArrayList<@NonNull Class<?>> classes = new ArrayList<>(2);
 			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
-			for (; klass != Object.class; klass = klass.getSuperclass())
+			for (; klass != Object.class; klass = ensureNonNull(klass.getSuperclass()))
 				classes.add(klass);
 			for (int i = classes.size() - 1; i >= 0; i--) {
 				klass = classes.get(i);
 				for (Field field : klass.getDeclaredFields()) {
 					if (Modifier.isStatic(field.getModifiers()))
 						continue;
-					Class<?> fieldClass = field.getType();
+					Class<?> fieldClass = ensureNonNull(field.getType());
 					Integer v = typeMap.get(fieldClass);
 					int type;
 					if (v != null)
@@ -440,7 +451,7 @@ public final class Jason {
 							continue;
 					} else
 						type = TYPE_CUSTOM;
-					String name = field.getName();
+					String name = ensureNonNull(field.getName());
 					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
 					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
 					if (oldFieldMeta != null)
@@ -451,17 +462,17 @@ public final class Jason {
 			fieldMetas = fieldMetaList.toArray(new FieldMeta[fieldMetaList.size()]);
 		}
 
-		public Parser<T> getParser() {
+		public @Nullable Parser<T> getParser() {
 			return parser;
 		}
 
-		public void setParser(Parser<T> p) {
+		public void setParser(@Nullable Parser<T> p) {
 			parser = p;
 		}
 
 		@SuppressWarnings("unchecked")
 		@Deprecated
-		public void setParserUnsafe(Parser<?> p) { // DANGEROUS! only for special purpose
+		public void setParserUnsafe(@Nullable Parser<?> p) { // DANGEROUS! only for special purpose
 			parser = (Parser<T>) p;
 		}
 
@@ -469,15 +480,17 @@ public final class Jason {
 			return fieldMetas.length;
 		}
 
+		@SuppressWarnings("null")
+		@NonNull
 		FieldMeta get(int idx) {
 			return fieldMetas[idx];
 		}
 	}
 
-	private static final Unsafe unsafe;
+	private static final @NonNull Unsafe unsafe;
 	private static final long STRING_VALUE_OFFSET;
-	private static final ThreadLocal<Jason> jsonParserLocals = ThreadLocal.withInitial(Jason::new);
-	private static final ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
+	private static final @NonNull ThreadLocal<Jason> jasonLocals = ensureNonNull(ThreadLocal.withInitial(Jason::new));
+	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
 
@@ -485,7 +498,7 @@ public final class Jason {
 		try {
 			Field theUnsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 			theUnsafeField.setAccessible(true);
-			unsafe = (Unsafe) theUnsafeField.get(null);
+			unsafe = ensureNonNull((Unsafe) theUnsafeField.get(null));
 			Field valueField = String.class.getDeclaredField("value");
 			STRING_VALUE_OFFSET = valueField.getType() == byte[].class ? unsafe.objectFieldOffset(valueField) : 0;
 		} catch (ReflectiveOperationException e) {
@@ -493,26 +506,32 @@ public final class Jason {
 		}
 	}
 
-	public static Unsafe getUnsafe() {
+	@SuppressWarnings("null")
+	static <T> @NonNull T ensureNonNull(@Nullable T obj) {
+		return obj; //NOSONAR
+	}
+
+	public static @NonNull Unsafe getUnsafe() {
 		return unsafe;
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T> T allocObj(ClassMeta<T> classMeta) throws ReflectiveOperationException {
+	public static <T> @NonNull T allocObj(@NonNull ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		Constructor<?> ctor = classMeta.ctor;
-		return (T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass));
+		return ensureNonNull(
+				(T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass)));
 	}
 
-	public static Jason local() {
-		return jsonParserLocals.get();
+	public static @NonNull Jason local() {
+		return ensureNonNull(jasonLocals.get());
 	}
 
 	public static void removeLocal() {
-		jsonParserLocals.remove();
+		jasonLocals.remove();
 	}
 
-	@SuppressWarnings("unchecked")
-	public static <T> ClassMeta<T> getClassMeta(Class<T> klass) {
+	@SuppressWarnings({ "unchecked", "null" })
+	public static <T> @NonNull ClassMeta<T> getClassMeta(@NonNull Class<T> klass) {
 		return (ClassMeta<T>) classMetas.computeIfAbsent(klass, ClassMeta::new);
 	}
 
@@ -527,7 +546,7 @@ public final class Jason {
 			Arrays.fill(ss, null);
 	}
 
-	static String intern(byte[] buf, int pos, int end) throws ReflectiveOperationException {
+	static @NonNull String intern(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		int len = end - pos;
 		String[] ss = poolStrs;
 		if (ss == null)
@@ -571,7 +590,7 @@ public final class Jason {
 		pos = p;
 	}
 
-	public Jason reset() {
+	public @NonNull Jason reset() {
 		buf = null;
 		pos = 0;
 		tmp = null;
@@ -582,13 +601,13 @@ public final class Jason {
 		return buf;
 	}
 
-	public Jason buf(byte[] b) {
+	public @NonNull Jason buf(byte[] b) {
 		buf = b;
 		pos = 0;
 		return this;
 	}
 
-	public Jason buf(byte[] b, int p) {
+	public @NonNull Jason buf(byte[] b, int p) {
 		buf = b;
 		pos = p;
 		return this;
@@ -598,12 +617,12 @@ public final class Jason {
 		return pos;
 	}
 
-	public Jason pos(int p) {
+	public @NonNull Jason pos(int p) {
 		pos = p;
 		return this;
 	}
 
-	public Jason pos(Pos p) {
+	public @NonNull Jason pos(Pos p) {
 		pos = p.pos;
 		return this;
 	}
@@ -612,18 +631,18 @@ public final class Jason {
 		return tmp;
 	}
 
-	public Jason tmp(char[] t) {
+	public @NonNull Jason tmp(char[] t) {
 		tmp = t;
 		return this;
 	}
 
-	public Jason tmp(int size) {
+	public @NonNull Jason tmp(int size) {
 		if (tmp == null || tmp.length < size)
 			tmp = new char[size];
 		return this;
 	}
 
-	public Jason skip(int n) {
+	public @NonNull Jason skip(int n) {
 		pos += n;
 		return this;
 	}
@@ -672,12 +691,13 @@ public final class Jason {
 		}
 	}
 
-	public Object parse() throws ReflectiveOperationException {
+	public @Nullable Object parse() throws ReflectiveOperationException {
 		return parse(null, next());
 	}
 
 	@SuppressWarnings("unchecked")
-	Object parse(Object obj, int b) throws ReflectiveOperationException {
+	@Nullable
+	Object parse(@Nullable Object obj, int b) throws ReflectiveOperationException {
 		switch (b) { //@formatter:off
 		case '{': return parseMap0(obj instanceof Map ? (Map<String, Object>) obj : null);
 		case '[': return parseArray0(obj instanceof Collection ? (Collection<Object>) obj : null);
@@ -690,11 +710,12 @@ public final class Jason {
 		return null;
 	}
 
-	public Collection<Object> parseArray(Collection<Object> c) throws ReflectiveOperationException {
+	public @Nullable Collection<Object> parseArray(@Nullable Collection<Object> c) throws ReflectiveOperationException {
 		return next() == '[' ? parseArray0(c) : c;
 	}
 
-	Collection<Object> parseArray0(Collection<Object> c) throws ReflectiveOperationException {
+	@NonNull
+	Collection<Object> parseArray0(@Nullable Collection<Object> c) throws ReflectiveOperationException {
 		if (c == null)
 			c = new ArrayList<>();
 		for (int b = skipNext(); b != ']'; b = skipVar())
@@ -703,10 +724,11 @@ public final class Jason {
 		return c;
 	}
 
-	public Map<String, Object> parseMap(Map<String, Object> m) throws ReflectiveOperationException {
+	public @Nullable Map<String, Object> parseMap(@Nullable Map<String, Object> m) throws ReflectiveOperationException {
 		return next() == '{' ? parseMap0(m) : m;
 	}
 
+	@NonNull
 	Map<String, Object> parseMap0(Map<String, Object> m) throws ReflectiveOperationException {
 		if (m == null)
 			m = new HashMap<>();
@@ -720,7 +742,7 @@ public final class Jason {
 		return m;
 	}
 
-	public <T> T parse(Class<T> klass) throws ReflectiveOperationException {
+	public <T> @Nullable T parse(@Nullable Class<T> klass) throws ReflectiveOperationException {
 		if (klass == null)
 			return null;
 		ClassMeta<T> classMeta = getClassMeta(klass);
@@ -728,14 +750,14 @@ public final class Jason {
 		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
 	}
 
-	public <T> T parse(ClassMeta<T> classMeta) throws ReflectiveOperationException {
+	public <T> @Nullable T parse(@Nullable ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		if (classMeta == null || next() != '{')
 			return null;
 		Parser<T> parser = classMeta.parser;
 		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
 	}
 
-	public <T> T parse(T obj) throws ReflectiveOperationException {
+	public <T> @Nullable T parse(@Nullable T obj) throws ReflectiveOperationException {
 		if (obj == null || next() != '{')
 			return obj;
 		@SuppressWarnings("unchecked")
@@ -744,7 +766,7 @@ public final class Jason {
 		return parser != null ? parser.parse(this, classMeta, obj) : parse(obj, classMeta);
 	}
 
-	public <T> T parse(T obj, ClassMeta<?> classMeta) throws ReflectiveOperationException {
+	public <T> @Nullable T parse(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
 		if (next() != '{')
 			return null;
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
@@ -1049,7 +1071,7 @@ public final class Jason {
 		return obj;
 	}
 
-	public static long getKeyHash(String str) {
+	public static long getKeyHash(@NonNull String str) {
 		byte[] buf = str.getBytes(StandardCharsets.UTF_8);
 		int n = buf.length;
 		if (n <= 0)
@@ -1093,6 +1115,7 @@ public final class Jason {
 		}
 	}
 
+	@Nullable
 	String parseStringKey(int b) throws ReflectiveOperationException {
 		return b == '"' ? parseString(true) : parseStringNoQuot();
 	}
@@ -1101,19 +1124,19 @@ public final class Jason {
 		return b <= '9' ? b - '0' : (b | 0x20) - ('a' - 10); // A~F:0x4X | 0x20 = a~z:0x6X
 	}
 
-	static String newByteString(byte[] buf, int pos, int end) throws ReflectiveOperationException {
+	static @NonNull String newByteString(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		if (STRING_VALUE_OFFSET == 0) // for JDK8-
 			return new String(buf, pos, end - pos, StandardCharsets.ISO_8859_1);
-		String str = (String) unsafe.allocateInstance(String.class);
+		String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
 		unsafe.putObject(str, STRING_VALUE_OFFSET, Arrays.copyOfRange(buf, pos, end)); // for JDK9+
 		return str;
 	}
 
-	public String parseString() throws ReflectiveOperationException {
+	public @Nullable String parseString() throws ReflectiveOperationException {
 		return parseString(false);
 	}
 
-	public String parseString(boolean intern) throws ReflectiveOperationException {
+	public @Nullable String parseString(boolean intern) throws ReflectiveOperationException {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		if (buffer[p] != '"')
@@ -1165,7 +1188,7 @@ public final class Jason {
 		}
 	}
 
-	public String parseStringNoQuot() throws ReflectiveOperationException {
+	public @NonNull String parseStringNoQuot() throws ReflectiveOperationException {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		final int begin = p;
@@ -1508,7 +1531,7 @@ public final class Jason {
 		return d;
 	}
 
-	public Object parseNumber() {
+	public @NonNull Object parseNumber() {
 		final byte[] buffer = buf;
 		double d = 0;
 		long i = 0;
