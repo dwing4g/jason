@@ -14,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
-
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 
@@ -35,8 +34,6 @@ public final class Jason {
 	private static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
 	private static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
 	private static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
-
-	private static final int KEY_HASH_MULTIPLIER = 0x100_0193; // 1677_7619
 
 	private static final @NonNull Double NEGATIVE_INFINITY = ensureNonNull(Double.valueOf(Double.NEGATIVE_INFINITY));
 	private static final @NonNull Double POSITIVE_INFINITY = ensureNonNull(Double.valueOf(Double.POSITIVE_INFINITY));
@@ -118,9 +115,9 @@ public final class Jason {
 		private static final int PRIME2 = 0xbe1f14b1;
 		private static final int PRIME3 = 0xb4b82e39;
 		private static final float LOAD_FACTOR = 0.5f;
-		private static final long ZERO_KEY = 0;
+		private static final int ZERO_KEY = 0;
 		private int mask; // [0,0x3fff_ffff]
-		private long[] keyTable;
+		private int[] keyTable;
 		private FieldMeta[] valueTable;
 		private @Nullable FieldMeta zeroValue;
 		private boolean hasZeroValue;
@@ -139,28 +136,26 @@ public final class Jason {
 			capacity = tableSize = initialCapacity;
 			threshold = (int) Math.ceil(initialCapacity * LOAD_FACTOR);
 			initialCapacity += (int) Math.ceil(Math.log(initialCapacity)) * 2;
-			keyTable = new long[initialCapacity];
+			keyTable = new int[initialCapacity];
 			valueTable = new FieldMeta[initialCapacity];
 		}
 
-		int hash2(long h64) {
-			h64 *= PRIME2;
-			int h = (int) (h64 ^ (h64 >> 32));
+		int hash2(int h) {
+			h *= PRIME2;
 			return (h ^ (h >>> hashShift)) & mask;
 		}
 
-		int hash3(long h64) {
-			h64 *= PRIME3;
-			int h = (int) (h64 ^ (h64 >> 32));
+		int hash3(int h) {
+			h *= PRIME3;
 			return (h ^ (h >>> hashShift)) & mask;
 		}
 
 		@Nullable
-		FieldMeta get(long key) {
+		FieldMeta get(int key) {
 			if (key == ZERO_KEY)
 				return hasZeroValue ? zeroValue : null;
-			long[] kt = keyTable;
-			int idx = (int) key & mask;
+			int[] kt = keyTable;
+			int idx = key & mask;
 			if (kt[idx] != key) {
 				idx = hash2(key);
 				if (kt[idx] != key) {
@@ -177,7 +172,7 @@ public final class Jason {
 		}
 
 		@Nullable
-		FieldMeta put(long key, @Nullable FieldMeta value) {
+		FieldMeta put(int key, @Nullable FieldMeta value) {
 			if (key == ZERO_KEY) {
 				FieldMeta oldValue = zeroValue;
 				zeroValue = value;
@@ -188,24 +183,21 @@ public final class Jason {
 				return oldValue;
 			}
 
-			long[] kt = keyTable;
+			int[] kt = keyTable;
 			FieldMeta[] vt = valueTable;
-			int idx1 = (int) key & mask;
-			long key1 = kt[idx1];
+			int idx1 = key & mask, key1 = kt[idx1];
 			if (key1 == key) {
 				FieldMeta oldValue = vt[idx1];
 				vt[idx1] = value;
 				return oldValue;
 			}
-			int idx2 = hash2(key);
-			long key2 = kt[idx2];
+			int idx2 = hash2(key), key2 = kt[idx2];
 			if (key2 == key) {
 				FieldMeta oldValue = vt[idx2];
 				vt[idx2] = value;
 				return oldValue;
 			}
-			int idx3 = hash3(key);
-			long key3 = kt[idx3];
+			int idx3 = hash3(key), key3 = kt[idx3];
 			if (key3 == key) {
 				FieldMeta oldValue = vt[idx3];
 				vt[idx3] = value;
@@ -248,12 +240,10 @@ public final class Jason {
 			return null;
 		}
 
-		boolean push(long newKey, @Nullable FieldMeta newValue, int idx1, long key1, int idx2, long key2, int idx3,
-				long key3) {
-			long[] kt = keyTable;
+		boolean push(int key, @Nullable FieldMeta value, int idx1, int key1, int idx2, int key2, int idx3, int key3) {
+			int[] kt = keyTable;
 			FieldMeta[] vt = valueTable;
-			int m = mask;
-			long evictedKey;
+			int m = mask, evictedKey;
 			FieldMeta evictedValue;
 			ThreadLocalRandom rand = ThreadLocalRandom.current();
 			for (int i = 0, pis = pushIterations;;) {
@@ -261,24 +251,24 @@ public final class Jason {
 				case 0:
 					evictedKey = key1;
 					evictedValue = vt[idx1];
-					kt[idx1] = newKey;
-					vt[idx1] = newValue;
+					kt[idx1] = key;
+					vt[idx1] = value;
 					break;
 				case 1:
 					evictedKey = key2;
 					evictedValue = vt[idx2];
-					kt[idx2] = newKey;
-					vt[idx2] = newValue;
+					kt[idx2] = key;
+					vt[idx2] = value;
 					break;
 				default:
 					evictedKey = key3;
 					evictedValue = vt[idx3];
-					kt[idx3] = newKey;
-					vt[idx3] = newValue;
+					kt[idx3] = key;
+					vt[idx3] = value;
 					break;
 				}
 
-				idx1 = (int) evictedKey & m;
+				idx1 = evictedKey & m;
 				key1 = kt[idx1];
 				if (key1 == ZERO_KEY) {
 					kt[idx1] = evictedKey;
@@ -301,8 +291,8 @@ public final class Jason {
 				}
 				if (++i == pis)
 					break;
-				newKey = evictedKey;
-				newValue = evictedValue;
+				key = evictedKey;
+				value = evictedValue;
 			}
 
 			if (tableSize == kt.length) {
@@ -325,36 +315,31 @@ public final class Jason {
 			capacity = tableSize = newCapacity;
 			threshold = (int) Math.ceil(newCapacity * LOAD_FACTOR);
 			newCapacity += (int) Math.ceil(Math.log(newCapacity)) * 2;
-			long[] oldKeyTable = keyTable;
-			FieldMeta[] oldValueTable = valueTable;
-			long[] kt = new long[newCapacity];
-			FieldMeta[] vt = new FieldMeta[newCapacity];
+			int[] oldKeyTable = keyTable, kt = new int[newCapacity];
+			FieldMeta[] oldValueTable = valueTable, vt = new FieldMeta[newCapacity];
 			keyTable = kt;
 			valueTable = vt;
 
 			if (size <= (hasZeroValue ? 1 : 0))
 				return;
 			for (int i = 0; i < oldEndIndex; i++) {
-				long key = oldKeyTable[i];
+				int key = oldKeyTable[i];
 				if (key == ZERO_KEY)
 					continue;
 				FieldMeta value = oldValueTable[i];
-				int idx1 = (int) key & mask;
-				long key1 = kt[idx1];
+				int idx1 = key & mask, key1 = kt[idx1];
 				if (key1 == ZERO_KEY) {
 					kt[idx1] = key;
 					vt[idx1] = value;
 					continue;
 				}
-				int idx2 = hash2(key);
-				long key2 = kt[idx2];
+				int idx2 = hash2(key), key2 = kt[idx2];
 				if (key2 == ZERO_KEY) {
 					kt[idx2] = key;
 					vt[idx2] = value;
 					continue;
 				}
-				int idx3 = hash3(key);
-				long key3 = kt[idx3];
+				int idx3 = hash3(key), key3 = kt[idx3];
 				if (key3 == ZERO_KEY) {
 					kt[idx3] = key;
 					vt[idx3] = value;
@@ -397,29 +382,30 @@ public final class Jason {
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
 		}
 
-		@SuppressWarnings("unchecked")
-		ClassMeta(@NonNull Class<?> klass) {
-			this.klass = (Class<T>) klass;
-			Constructor<?> ct = null;
+		ClassMeta(@NonNull Class<T> klass) {
+			this.klass = klass;
+			Constructor<T> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
 				if (c.getParameterCount() == 0) {
 					try {
 						c.setAccessible(true);
-						ct = c;
+						@SuppressWarnings("unchecked")
+						Constructor<T> ct0 = (Constructor<T>) c;
+						ct = ct0;
 					} catch (Exception e) {
 					}
 					break;
 				}
 			}
-			ctor = (Constructor<T>) ct;
-			ArrayList<@NonNull Class<?>> classes = new ArrayList<>(2);
+			ctor = ct;
+			ArrayList<Class<? super T>> classes = new ArrayList<>(2);
 			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
-			for (; klass != Object.class; klass = ensureNonNull(klass.getSuperclass()))
-				classes.add(klass);
+			for (Class<? super T> c = klass; c != Object.class; c = c.getSuperclass())
+				classes.add(c);
 			for (int i = classes.size() - 1; i >= 0; i--) {
-				klass = classes.get(i);
-				for (Field field : klass.getDeclaredFields()) {
-					if (Modifier.isStatic(field.getModifiers()))
+				Class<? super T> c = classes.get(i);
+				for (Field field : c.getDeclaredFields()) {
+					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
 						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
 					Integer v = typeMap.get(fieldClass);
@@ -454,7 +440,7 @@ public final class Jason {
 					String name = ensureNonNull(field.getName());
 					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
 					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
-					if (oldFieldMeta != null)
+					if (oldFieldMeta != null) // bad lucky! try to call setKeyHashMultiplier with another prime number
 						throw new IllegalStateException("conflicted field name: " + oldFieldMeta.name + " & " + name);
 					fieldMetaList.add(fieldMeta);
 				}
@@ -480,10 +466,9 @@ public final class Jason {
 			return fieldMetas.length;
 		}
 
-		@SuppressWarnings("null")
 		@NonNull
-		FieldMeta get(int idx) {
-			return fieldMetas[idx];
+		FieldMeta getByIdx(int idx) {
+			return ensureNonNull(fieldMetas[idx]);
 		}
 	}
 
@@ -493,6 +478,7 @@ public final class Jason {
 	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
+	private static int keyHashMultiplier = 0x100_0193; // 1677_7619
 
 	static {
 		try {
@@ -515,11 +501,10 @@ public final class Jason {
 		return unsafe;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "null" })
 	public static <T> @NonNull T allocObj(@NonNull ClassMeta<T> classMeta) throws ReflectiveOperationException {
-		Constructor<?> ctor = classMeta.ctor;
-		return ensureNonNull(
-				(T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass)));
+		Constructor<T> ctor = classMeta.ctor;
+		return ctor != null ? ctor.newInstance((Object[]) null) : (T) unsafe.allocateInstance(classMeta.klass);
 	}
 
 	public static @NonNull Jason local() {
@@ -551,7 +536,7 @@ public final class Jason {
 		String[] ss = poolStrs;
 		if (ss == null)
 			poolStrs = ss = new String[poolSize];
-		int idx = (int) getKeyHash(buf, pos, end) & (ss.length - 1);
+		int idx = getKeyHash(buf, pos, end) & (ss.length - 1);
 		String s = ss[idx];
 		if (s != null) {
 			if (STRING_VALUE_OFFSET != 0) { // JDK9+
@@ -572,6 +557,10 @@ public final class Jason {
 		}
 		ss[idx] = s = newByteString(buf, pos, end);
 		return s;
+	}
+
+	public static void setKeyHashMultiplier(int multiplier) { // must be set before any other access
+		keyHashMultiplier = multiplier;
 	}
 
 	private byte[] buf;
@@ -761,7 +750,7 @@ public final class Jason {
 		if (obj == null || next() != '{')
 			return obj;
 		@SuppressWarnings("unchecked")
-		ClassMeta<T> classMeta = (ClassMeta<T>) getClassMeta(obj.getClass());
+		ClassMeta<T> classMeta = getClassMeta((Class<T>) obj.getClass());
 		Parser<T> parser = classMeta.parser;
 		return parser != null ? parser.parse(this, classMeta, obj) : parse(obj, classMeta);
 	}
@@ -1071,45 +1060,45 @@ public final class Jason {
 		return obj;
 	}
 
-	public static long getKeyHash(@NonNull String str) {
+	public static int getKeyHash(@NonNull String str) {
 		byte[] buf = str.getBytes(StandardCharsets.UTF_8);
 		int n = buf.length;
 		if (n <= 0)
 			return 0;
-		long h = buf[0];
+		int h = buf[0], m = keyHashMultiplier;
 		for (int i = 1; i < n; i++)
-			h = h * KEY_HASH_MULTIPLIER + buf[i];
+			h = h * m + buf[i];
 		return h;
 	}
 
-	public static long getKeyHash(byte[] buf, int pos, int end) {
+	public static int getKeyHash(byte[] buf, int pos, int end) {
 		if (pos >= end)
 			return 0;
-		long h = buf[pos];
+		int h = buf[pos], m = keyHashMultiplier;
 		while (++pos < end)
-			h = h * KEY_HASH_MULTIPLIER + buf[pos];
+			h = h * m + buf[pos];
 		return h;
 	}
 
-	long parseKeyHash() {
+	int parseKeyHash() {
 		pos++; // skip the first '"'
 		int b = buf[pos++];
 		if (b == '"')
 			return 0;
-		for (long h = b;; h = h * KEY_HASH_MULTIPLIER + b) {
+		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if (b == '\\')
-				h = h * KEY_HASH_MULTIPLIER + buf[pos++];
+				h = h * m + buf[pos++];
 			if ((b = buf[pos++]) == '"')
 				return h;
 		}
 	}
 
-	long parseKeyHashNoQuot(int b) {
+	int parseKeyHashNoQuot(int b) {
 		if (b == ':')
 			return 0;
-		for (long h = b;; h = h * KEY_HASH_MULTIPLIER + b) {
+		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if (b == '\\')
-				h = h * KEY_HASH_MULTIPLIER + buf[++pos];
+				h = h * m + buf[++pos];
 			if (((b = buf[++pos]) & 0xff) <= ' ' || b == ':')
 				return h;
 		}
@@ -1127,7 +1116,9 @@ public final class Jason {
 	static @NonNull String newByteString(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		if (STRING_VALUE_OFFSET == 0) // for JDK8-
 			return new String(buf, pos, end - pos, StandardCharsets.ISO_8859_1);
-		String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
+		@SuppressWarnings("null")
+		@NonNull
+		String str = (String) unsafe.allocateInstance(String.class);
 		unsafe.putObject(str, STRING_VALUE_OFFSET, Arrays.copyOfRange(buf, pos, end)); // for JDK9+
 		return str;
 	}
