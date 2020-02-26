@@ -29,11 +29,10 @@ public final class Test {
 		c = Jason.local().buf("{a:{a:5,b:6}}".getBytes()).parse(c);
 		System.out.println(c.a.getClass() == A.class && c.a.a == 5);
 
-		Jason.getClassMeta(A.class).setIdentifier(jason -> Jason.getClassMeta(B.class));
+		Jason.getClassMeta(A.class).setParser((jason, __, ___) -> jason.parse(B.class));
 		c.a = null;
 		c = Jason.local().buf("{a:{a:7,b:8}}".getBytes()).parse(c);
 		System.out.println(c.a.getClass() == B.class && c.a.a == 7 && ((B) c.a).b == 8);
-		Jason.getClassMeta(C.class).setIdentifier(null);
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {

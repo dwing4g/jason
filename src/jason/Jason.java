@@ -28,7 +28,7 @@ public final class Jason {
 	private static final int TYPE_STRING = 9; // String
 	private static final int TYPE_OBJECT = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<>,HashMap<>)
 	private static final int TYPE_POS = 11; // Pos(pos)
-	private static final int TYPE_CUSTOM = 12; // other custom type
+	private static final int TYPE_CUSTOM = 12; // user custom type
 	private static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
 	private static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
 	private static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
@@ -72,8 +72,13 @@ public final class Jason {
 			1e+288, 1e+289, 1e+290, 1e+291, 1e+292, 1e+293, 1e+294, 1e+295, 1e+296, 1e+297, 1e+298, 1e+299, 1e+300,
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
-	public interface Identifier {
-		ClassMeta identify(Jason jason);
+	public interface Parser<T> {
+		T parse(Jason jason, ClassMeta<T> classMeta, T obj) throws ReflectiveOperationException;
+
+		@SuppressWarnings("unchecked")
+		default T parse0(Jason jason, ClassMeta<?> classMeta, Object obj) throws ReflectiveOperationException {
+			return parse(jason, (ClassMeta<T>) classMeta, (T) obj);
+		}
 	}
 
 	public static class Pos {
@@ -92,7 +97,7 @@ public final class Jason {
 		final long offset;
 		final String name; // field name
 		final Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
-		ClassMeta classMeta; // from klass, lazy assigned
+		ClassMeta<?> classMeta; // from klass, lazy assigned
 
 		FieldMeta(int type, long offset, String name, Class<?> klass) {
 			this.type = type;
@@ -352,12 +357,12 @@ public final class Jason {
 		}
 	}
 
-	public static final class ClassMeta extends FieldMetaMap {
+	public static final class ClassMeta<T> extends FieldMetaMap {
 		private static final HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
-		final Class<?> klass;
-		final Constructor<?> ctor;
+		final Class<T> klass;
+		final Constructor<T> ctor;
 		private final FieldMeta[] fieldMetas;
-		Identifier identifier;
+		Parser<T> parser; // user custom parser
 
 		static {
 			typeMap.put(boolean.class, TYPE_BOOLEAN);
@@ -381,8 +386,9 @@ public final class Jason {
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
 		}
 
+		@SuppressWarnings("unchecked")
 		ClassMeta(Class<?> klass) {
-			this.klass = klass;
+			this.klass = (Class<T>) klass;
 			Constructor<?> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
 				if (c.getParameterCount() == 0) {
@@ -394,7 +400,7 @@ public final class Jason {
 					break;
 				}
 			}
-			ctor = ct;
+			ctor = (Constructor<T>) ct;
 			ArrayList<Class<?>> classes = new ArrayList<>(2);
 			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
 			for (; klass != Object.class; klass = klass.getSuperclass())
@@ -445,12 +451,12 @@ public final class Jason {
 			fieldMetas = fieldMetaList.toArray(new FieldMeta[fieldMetaList.size()]);
 		}
 
-		public void setIdentifier(Identifier iden) {
-			identifier = iden;
+		public Parser<T> getParser() {
+			return parser;
 		}
 
-		ClassMeta identifyClassMeta(Jason jason) {
-			return identifier != null ? identifier.identify(jason) : this;
+		public void setParser(Parser<T> p) {
+			parser = p;
 		}
 
 		int size() {
@@ -465,7 +471,7 @@ public final class Jason {
 	private static final Unsafe unsafe;
 	private static final long STRING_VALUE_OFFSET;
 	private static final ThreadLocal<Jason> jsonParserLocals = ThreadLocal.withInitial(Jason::new);
-	private static final ConcurrentHashMap<Class<?>, ClassMeta> classMetas = new ConcurrentHashMap<>();
+	private static final ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
 
@@ -486,7 +492,7 @@ public final class Jason {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T> T allocObj(ClassMeta classMeta) throws ReflectiveOperationException {
+	public static <T> T allocObj(ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		Constructor<?> ctor = classMeta.ctor;
 		return (T) (ctor != null ? ctor.newInstance((Object[]) null) : unsafe.allocateInstance(classMeta.klass));
 	}
@@ -499,8 +505,9 @@ public final class Jason {
 		jsonParserLocals.remove();
 	}
 
-	public static ClassMeta getClassMeta(Class<?> klass) {
-		return classMetas.computeIfAbsent(klass, ClassMeta::new);
+	@SuppressWarnings("unchecked")
+	public static <T> ClassMeta<T> getClassMeta(Class<T> klass) {
+		return (ClassMeta<T>) classMetas.computeIfAbsent(klass, ClassMeta::new);
 	}
 
 	public static void resetStringPool(int size) {
@@ -708,29 +715,32 @@ public final class Jason {
 	}
 
 	public <T> T parse(Class<T> klass) throws ReflectiveOperationException {
-		if (klass == null || next() != '{')
+		if (klass == null)
 			return null;
-		ClassMeta classMeta = getClassMeta(klass).identifyClassMeta(this);
-		return classMeta != null ? parse0(allocObj(classMeta), classMeta) : null;
+		ClassMeta<T> classMeta = getClassMeta(klass);
+		Parser<T> parser = classMeta.parser;
+		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
 	}
 
-	public <T> T parse(ClassMeta classMeta) throws ReflectiveOperationException {
+	public <T> T parse(ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		if (classMeta == null || next() != '{')
 			return null;
-		classMeta = classMeta.identifyClassMeta(this);
-		return classMeta != null ? parse0(allocObj(classMeta), classMeta) : null;
+		Parser<T> parser = classMeta.parser;
+		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
 	}
 
 	public <T> T parse(T obj) throws ReflectiveOperationException {
-		return obj == null || next() != '{' ? obj : parse0(obj, getClassMeta(obj.getClass()));
+		if (obj == null || next() != '{')
+			return obj;
+		@SuppressWarnings("unchecked")
+		ClassMeta<T> classMeta = (ClassMeta<T>) getClassMeta(obj.getClass());
+		Parser<T> parser = classMeta.parser;
+		return parser != null ? parser.parse(this, classMeta, obj) : parse(obj, classMeta);
 	}
 
-	public <T> T parse(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
-		return obj == null || next() != '{' ? obj // fastest but dangerous if obj and classMeta are not matched
-				: parse0(obj, classMeta != null ? classMeta : getClassMeta(obj.getClass()));
-	}
-
-	<T> T parse0(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
+	public <T> T parse(T obj, ClassMeta<?> classMeta) throws ReflectiveOperationException {
+		if (next() != '{')
+			return null;
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
 			if (fm == null)
@@ -778,28 +788,30 @@ public final class Jason {
 					p.pos = pos;
 				break;
 			case TYPE_CUSTOM:
-				if (b != '{')
-					unsafe.putObject(obj, offset, null);
-				else {
-					Object subObj = unsafe.getObject(obj, offset);
-					if (subObj != null) {
-						Class<?> subClass = subObj.getClass();
-						ClassMeta subClassMeta;
-						if (subClass == fm.klass) {
-							subClassMeta = fm.classMeta;
-							if (subClassMeta == null)
-								fm.classMeta = subClassMeta = getClassMeta(subClass);
-						} else
-							subClassMeta = getClassMeta(subClass);
-						parse0(subObj, subClassMeta);
-					} else {
-						ClassMeta subClassMeta = fm.classMeta;
+				Object subObj = unsafe.getObject(obj, offset);
+				if (subObj != null) {
+					Class<?> subClass = subObj.getClass();
+					ClassMeta<?> subClassMeta;
+					if (subClass == fm.klass) {
+						subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
-						subClassMeta = subClassMeta.identifyClassMeta(this);
-						unsafe.putObject(obj, offset,
-								subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta) : null);
-					}
+							fm.classMeta = subClassMeta = getClassMeta(subClass);
+					} else
+						subClassMeta = getClassMeta(subClass);
+					Parser<?> parser = subClassMeta.parser;
+					if (parser != null) {
+						Object newSubObj = parser.parse0(this, subClassMeta, subObj);
+						if (newSubObj != subObj)
+							unsafe.putObject(obj, offset, newSubObj);
+					} else if (parse(subObj, subClassMeta) == null)
+						unsafe.putObject(obj, offset, null);
+				} else {
+					ClassMeta<?> subClassMeta = fm.classMeta;
+					if (subClassMeta == null)
+						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
+					Parser<?> parser = subClassMeta.parser;
+					unsafe.putObject(obj, offset, parser != null ? parser.parse0(this, subClassMeta, null)
+							: parse(allocObj(subClassMeta), subClassMeta));
 				}
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
@@ -886,22 +898,16 @@ public final class Jason {
 							c.add(new Pos(pos));
 						break;
 					case TYPE_CUSTOM:
-						ClassMeta subClassMeta = fm.classMeta;
+						ClassMeta<?> subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
-						Identifier identifier = subClassMeta.identifier;
-						if (identifier == null) {
+						Parser<?> parser = subClassMeta.parser;
+						if (parser != null) {
 							for (; b != ']'; b = skipVar())
-								c.add(b != '{' ? null : parse0(allocObj(subClassMeta), subClassMeta));
+								c.add(parser.parse0(this, subClassMeta, null));
 						} else {
-							for (; b != ']'; b = skipVar()) {
-								if (b != '{')
-									c.add(null);
-								else {
-									subClassMeta = identifier.identify(this);
-									c.add(subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta) : null);
-								}
-							}
+							for (; b != ']'; b = skipVar())
+								c.add(parse(allocObj(subClassMeta), subClassMeta));
 						}
 						break;
 					}
@@ -1008,29 +1014,23 @@ public final class Jason {
 						}
 						break;
 					case TYPE_CUSTOM:
-						ClassMeta subClassMeta = fm.classMeta;
+						ClassMeta<?> subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
-						Identifier identifier = subClassMeta.identifier;
-						if (identifier == null) {
+						Parser<?> parser = subClassMeta.parser;
+						if (parser != null) {
 							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
-								if ((b = next()) == ':')
-									b = skipNext();
-								m.put(k, b == 'n' ? null : parse0(allocObj(subClassMeta), subClassMeta));
+								if (next() == ':')
+									skipNext();
+								m.put(k, parser.parse0(this, subClassMeta, null));
 							}
 						} else {
 							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
-								if ((b = next()) == ':')
-									b = skipNext();
-								if (b != '{')
-									m.put(k, null);
-								else {
-									subClassMeta = identifier.identify(this);
-									m.put(k, subClassMeta != null ? parse0(allocObj(subClassMeta), subClassMeta)
-											: null);
-								}
+								if (next() == ':')
+									skipNext();
+								m.put(k, parse(allocObj(subClassMeta), subClassMeta));
 							}
 						}
 						break;
