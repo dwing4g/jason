@@ -17,18 +17,18 @@ import sun.misc.Unsafe; //NOSONAR
 
 // Compile with JDK9+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
 public final class Jason {
-	private static final int TYPE_BOOL = 1; // bool Boolean
+	private static final int TYPE_BOOLEAN = 1; // boolean Boolean
 	private static final int TYPE_BYTE = 2; // byte Byte
 	private static final int TYPE_SHORT = 3; // short Short
-	private static final int TYPE_CHAR = 4; // char Char
+	private static final int TYPE_CHAR = 4; // char Character
 	private static final int TYPE_INT = 5; // int Integer
 	private static final int TYPE_LONG = 6; // long Long
 	private static final int TYPE_FLOAT = 7; // float Float
 	private static final int TYPE_DOUBLE = 8; // double Double
 	private static final int TYPE_STRING = 9; // String
-	private static final int TYPE_VAR = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<O>,HashMap<S,O>)
+	private static final int TYPE_OBJECT = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<>,HashMap<>)
 	private static final int TYPE_POS = 11; // Pos(pos)
-	private static final int TYPE_OBJ = 12; // other custom type
+	private static final int TYPE_CUSTOM = 12; // other custom type
 	private static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
 	private static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
 	private static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
@@ -73,7 +73,7 @@ public final class Jason {
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
 
 	public interface Identifier {
-		ClassMeta identify(Jason jp);
+		ClassMeta identify(Jason jason);
 	}
 
 	public static class Pos {
@@ -112,7 +112,7 @@ public final class Jason {
 		private FieldMeta[] valueTable;
 		private FieldMeta zeroValue;
 		private boolean hasZeroValue;
-		private short pushIterations; // [1,2,4,8,11,16,22,...,4096]
+		private int pushIterations; // [1,2,4,8,11,16,22,...,4096]
 		private int hashShift; // [0,1,...30]
 		private int size;
 		private int capacity; // [1,2,4,8,...,0x4000_0000]
@@ -122,7 +122,7 @@ public final class Jason {
 		FieldMetaMap() {
 			int initialCapacity = 16;
 			mask = initialCapacity - 1;
-			pushIterations = (short) Math.max(Math.min(initialCapacity, 8), (int) Math.sqrt(initialCapacity) >> 3);
+			pushIterations = Math.max(Math.min(initialCapacity, 8), (int) Math.sqrt(initialCapacity) >> 3);
 			hashShift = 31 - Integer.numberOfTrailingZeros(initialCapacity);
 			capacity = tableSize = initialCapacity;
 			threshold = (int) Math.ceil(initialCapacity * LOAD_FACTOR);
@@ -305,11 +305,10 @@ public final class Jason {
 		{
 			int oldEndIndex = tableSize;
 			mask = newCapacity - 1;
-			pushIterations = (short) Math.max(Math.min(newCapacity, 8), (int) Math.sqrt(newCapacity) >> 3);
+			pushIterations = Math.max(Math.min(newCapacity, 8), (int) Math.sqrt(newCapacity) >> 3);
 			hashShift = 31 - Integer.numberOfTrailingZeros(newCapacity);
 			capacity = tableSize = newCapacity;
 			threshold = (int) Math.ceil(newCapacity * LOAD_FACTOR);
-
 			newCapacity += (int) Math.ceil(Math.log(newCapacity)) * 2;
 			long[] oldKeyTable = keyTable;
 			FieldMeta[] oldValueTable = valueTable;
@@ -361,7 +360,7 @@ public final class Jason {
 		Identifier identifier;
 
 		static {
-			typeMap.put(boolean.class, TYPE_BOOL);
+			typeMap.put(boolean.class, TYPE_BOOLEAN);
 			typeMap.put(byte.class, TYPE_BYTE);
 			typeMap.put(short.class, TYPE_SHORT);
 			typeMap.put(char.class, TYPE_CHAR);
@@ -370,9 +369,9 @@ public final class Jason {
 			typeMap.put(float.class, TYPE_FLOAT);
 			typeMap.put(double.class, TYPE_DOUBLE);
 			typeMap.put(String.class, TYPE_STRING);
-			typeMap.put(Object.class, TYPE_VAR);
+			typeMap.put(Object.class, TYPE_OBJECT);
 			typeMap.put(Pos.class, TYPE_POS);
-			typeMap.put(Boolean.class, TYPE_WRAP_FLAG + TYPE_BOOL);
+			typeMap.put(Boolean.class, TYPE_WRAP_FLAG + TYPE_BOOLEAN);
 			typeMap.put(Byte.class, TYPE_WRAP_FLAG + TYPE_BYTE);
 			typeMap.put(Short.class, TYPE_WRAP_FLAG + TYPE_SHORT);
 			typeMap.put(Character.class, TYPE_WRAP_FLAG + TYPE_CHAR);
@@ -416,7 +415,7 @@ public final class Jason {
 							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
 							if (geneTypes.length == 1 && (geneType = geneTypes[0]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_OBJ);
+								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 							} else
 								continue;
 						} else
@@ -428,13 +427,13 @@ public final class Jason {
 							if (geneTypes.length == 2 && geneTypes[0] == String.class
 									&& (geneType = geneTypes[1]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_OBJ);
+								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 							} else
 								continue;
 						} else
 							continue;
 					} else
-						type = TYPE_OBJ;
+						type = TYPE_CUSTOM;
 					String name = field.getName();
 					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
 					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
@@ -450,8 +449,8 @@ public final class Jason {
 			identifier = iden;
 		}
 
-		ClassMeta identifyClassMeta(Jason jp) {
-			return identifier != null ? identifier.identify(jp) : this;
+		ClassMeta identifyClassMeta(Jason jason) {
+			return identifier != null ? identifier.identify(jason) : this;
 		}
 
 		int size() {
@@ -515,7 +514,7 @@ public final class Jason {
 			Arrays.fill(ss, null);
 	}
 
-	private static String intern(byte[] buf, int pos, int end) throws ReflectiveOperationException {
+	static String intern(byte[] buf, int pos, int end) throws ReflectiveOperationException {
 		int len = end - pos;
 		String[] ss = poolStrs;
 		if (ss == null)
@@ -632,7 +631,7 @@ public final class Jason {
 				return b;
 	}
 
-	public int jumpVar() {
+	public int skipVar() {
 		for (int b, c;;) {
 			if ((b = buf[pos]) == ',')
 				for (;;)
@@ -667,8 +666,8 @@ public final class Jason {
 	@SuppressWarnings("unchecked")
 	Object parse(Object obj, int b) throws ReflectiveOperationException {
 		switch (b) { //@formatter:off
-		case '{': return parseMap(obj instanceof Map ? (Map<String, Object>) obj : null, b);
-		case '[': return parseArray(obj instanceof Collection ? (Collection<Object>) obj : null, b);
+		case '{': return parseMap0(obj instanceof Map ? (Map<String, Object>) obj : null);
+		case '[': return parseArray0(obj instanceof Collection ? (Collection<Object>) obj : null);
 		case '"': return parseString(false);
 		case '0': case '1': case '2': case '3': case '4': case '5':
 		case '6': case '7': case '8': case '9': case '-': case '.': return parseNumber();
@@ -679,30 +678,26 @@ public final class Jason {
 	}
 
 	public Collection<Object> parseArray(Collection<Object> c) throws ReflectiveOperationException {
-		return parseArray(c, next());
+		return next() == '[' ? parseArray0(c) : c;
 	}
 
-	Collection<Object> parseArray(Collection<Object> c, int b) throws ReflectiveOperationException {
-		if (b != '[')
-			return c;
+	Collection<Object> parseArray0(Collection<Object> c) throws ReflectiveOperationException {
 		if (c == null)
 			c = new ArrayList<>();
-		for (b = skipNext(); b != ']'; b = jumpVar())
+		for (int b = skipNext(); b != ']'; b = skipVar())
 			c.add(parse(null, b));
 		pos++;
 		return c;
 	}
 
 	public Map<String, Object> parseMap(Map<String, Object> m) throws ReflectiveOperationException {
-		return parseMap(m, next());
+		return next() == '{' ? parseMap0(m) : m;
 	}
 
-	Map<String, Object> parseMap(Map<String, Object> m, int b) throws ReflectiveOperationException {
-		if (b != '{')
-			return m;
+	Map<String, Object> parseMap0(Map<String, Object> m) throws ReflectiveOperationException {
 		if (m == null)
 			m = new HashMap<>();
-		for (b = skipNext(); b != '}'; b = jumpVar()) {
+		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			String k = parseStringKey(b);
 			if ((b = next()) == ':')
 				b = skipNext();
@@ -736,8 +731,8 @@ public final class Jason {
 	}
 
 	<T> T parse0(T obj, ClassMeta classMeta) throws ReflectiveOperationException {
-		for (int b = skipNext(); b != '}'; b = jumpVar()) {
-			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot());
+		for (int b = skipNext(); b != '}'; b = skipVar()) {
+			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
 			if (fm == null)
 				continue;
 			if ((b = next()) == ':')
@@ -745,7 +740,7 @@ public final class Jason {
 			long offset = fm.offset;
 			int type = fm.type;
 			switch (type) {
-			case TYPE_BOOL:
+			case TYPE_BOOLEAN:
 				unsafe.putBoolean(obj, offset, b == 't');
 				break;
 			case TYPE_BYTE:
@@ -772,7 +767,7 @@ public final class Jason {
 			case TYPE_STRING:
 				unsafe.putObject(obj, offset, parseString(false));
 				break;
-			case TYPE_VAR:
+			case TYPE_OBJECT:
 				unsafe.putObject(obj, offset, parse(unsafe.getObject(obj, offset), b));
 				break;
 			case TYPE_POS:
@@ -782,7 +777,7 @@ public final class Jason {
 				else
 					p.pos = pos;
 				break;
-			case TYPE_OBJ:
+			case TYPE_CUSTOM:
 				if (b != '{')
 					unsafe.putObject(obj, offset, null);
 				else {
@@ -806,7 +801,7 @@ public final class Jason {
 					}
 				}
 				break;
-			case TYPE_WRAP_FLAG + TYPE_BOOL:
+			case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
 				unsafe.putObject(obj, offset, b == 'n' ? null : b == 't');
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BYTE:
@@ -845,60 +840,60 @@ public final class Jason {
 						c.clear();
 					b = skipNext();
 					switch (type & 0xf) {
-					case TYPE_BOOL:
-						for (; b != ']'; b = jumpVar())
+					case TYPE_BOOLEAN:
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : b == 't');
 						break;
 					case TYPE_BYTE:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : (byte) parseInt());
 						break;
 					case TYPE_SHORT:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : (short) parseInt());
 						break;
 					case TYPE_CHAR:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : (char) parseInt());
 						break;
 					case TYPE_INT:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : parseInt());
 						break;
 					case TYPE_LONG:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : parseLong());
 						break;
 					case TYPE_FLOAT:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : (float) parseDouble());
 						break;
 					case TYPE_DOUBLE:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(b == 'n' ? null : parseDouble());
 						break;
 					case TYPE_STRING:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(parseString(false));
 						break;
-					case TYPE_VAR:
-						for (; b != ']'; b = jumpVar())
+					case TYPE_OBJECT:
+						for (; b != ']'; b = skipVar())
 							c.add(parse(null, b));
 						break;
 					case TYPE_POS:
-						for (; b != ']'; b = jumpVar())
+						for (; b != ']'; b = skipVar())
 							c.add(new Pos(pos));
 						break;
-					case TYPE_OBJ:
+					case TYPE_CUSTOM:
 						ClassMeta subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Identifier identifier = subClassMeta.identifier;
 						if (identifier == null) {
-							for (; b != ']'; b = jumpVar())
+							for (; b != ']'; b = skipVar())
 								c.add(b != '{' ? null : parse0(allocObj(subClassMeta), subClassMeta));
 						} else {
-							for (; b != ']'; b = jumpVar()) {
+							for (; b != ']'; b = skipVar()) {
 								if (b != '{')
 									c.add(null);
 								else {
@@ -923,8 +918,8 @@ public final class Jason {
 						m.clear();
 					b = skipNext();
 					switch (type & 0xf) {
-					case TYPE_BOOL:
-						for (; b != '}'; b = jumpVar()) {
+					case TYPE_BOOLEAN:
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -932,7 +927,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_BYTE:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -940,7 +935,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_SHORT:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -948,7 +943,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_CHAR:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -956,7 +951,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_INT:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -964,7 +959,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_LONG:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -972,7 +967,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_FLOAT:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -980,7 +975,7 @@ public final class Jason {
 						}
 						break;
 					case TYPE_DOUBLE:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -988,15 +983,15 @@ public final class Jason {
 						}
 						break;
 					case TYPE_STRING:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
 							m.put(k, b == 'n' ? null : parseString(false));
 						}
 						break;
-					case TYPE_VAR:
-						for (; b != '}'; b = jumpVar()) {
+					case TYPE_OBJECT:
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if ((b = next()) == ':')
 								b = skipNext();
@@ -1004,27 +999,27 @@ public final class Jason {
 						}
 						break;
 					case TYPE_POS:
-						for (; b != '}'; b = jumpVar()) {
+						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
 							if (next() == ':')
 								skipNext();
 							m.put(k, new Pos(pos));
 						}
 						break;
-					case TYPE_OBJ:
+					case TYPE_CUSTOM:
 						ClassMeta subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Identifier identifier = subClassMeta.identifier;
 						if (identifier == null) {
-							for (; b != '}'; b = jumpVar()) {
+							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
 								if ((b = next()) == ':')
 									b = skipNext();
 								m.put(k, b == 'n' ? null : parse0(allocObj(subClassMeta), subClassMeta));
 							}
 						} else {
-							for (; b != '}'; b = jumpVar()) {
+							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
 								if ((b = next()) == ':')
 									b = skipNext();
@@ -1079,9 +1074,8 @@ public final class Jason {
 		}
 	}
 
-	long parseKeyHashNoQuot() {
-		int b = buf[pos];
-		if ((b & 0xff) <= ' ' || b == ':')
+	long parseKeyHashNoQuot(int b) {
+		if (b == ':')
 			return 0;
 		for (long h = b;; h = h * KEY_HASH_MULTIPLIER + b) {
 			if (b == '\\')
@@ -1146,7 +1140,7 @@ public final class Jason {
 							+ (parseHex(buffer[p + 2]) << 4) + parseHex(buffer[p + 3]));
 					p += 4;
 				} else
-					t[n++] = (char) (b >= 0x20 ? ESCAPE[b - 0x20] : b);
+					t[n++] = (char) (b >= 0x20 ? ESCAPE[b - 0x20] : b & 0xff);
 			} else if (b >= 0)
 				t[n++] = (char) b;
 			else if (b >= -0x20) {
