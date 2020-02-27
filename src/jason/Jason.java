@@ -440,7 +440,7 @@ public final class Jason {
 					String name = ensureNonNull(field.getName());
 					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
 					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
-					if (oldFieldMeta != null) // bad lucky! try to call setKeyHashMultiplier with another prime number
+					if (oldFieldMeta != null) // bad luck! try to call setKeyHashMultiplier with another prime number
 						throw new IllegalStateException("conflicted field name: " + oldFieldMeta.name + " & " + name);
 					fieldMetaList.add(fieldMeta);
 				}
@@ -478,7 +478,7 @@ public final class Jason {
 	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
-	private static int keyHashMultiplier = 0x100_0193; // 1677_7619
+	private static final int keyHashMultiplier = 0x100_0193; //NOSONAR 1677_7619 can be changed to another prime number
 
 	static {
 		try {
@@ -493,7 +493,7 @@ public final class Jason {
 	}
 
 	@SuppressWarnings("null")
-	static <T> @NonNull T ensureNonNull(@Nullable T obj) {
+	public static <T> @NonNull T ensureNonNull(@Nullable T obj) {
 		return obj; //NOSONAR
 	}
 
@@ -559,9 +559,9 @@ public final class Jason {
 		return s;
 	}
 
-	public static void setKeyHashMultiplier(int multiplier) { // must be set before any other access
-		keyHashMultiplier = multiplier;
-	}
+//	public static void setKeyHashMultiplier(int multiplier) { // must be set before any other access
+//		keyHashMultiplier = multiplier;
+//	}
 
 	private byte[] buf; // only support utf-8 encoding
 	private int pos;
