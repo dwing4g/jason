@@ -563,7 +563,7 @@ public final class Jason {
 		keyHashMultiplier = multiplier;
 	}
 
-	private byte[] buf;
+	private byte[] buf; // only support utf-8 encoding
 	private int pos;
 	private char[] tmp; // for parseString & parseStringNoQuot
 
@@ -633,6 +633,12 @@ public final class Jason {
 
 	public @NonNull Jason skip(int n) {
 		pos += n;
+		return this;
+	}
+
+	public @NonNull Jason trySkipBom() {
+		if (pos <= buf.length - 3 && buf[pos] == 0xef && buf[pos + 1] == 0xbb && buf[pos + 2] == 0xbf)
+			pos += 3;
 		return this;
 	}
 
@@ -1204,7 +1210,7 @@ public final class Jason {
 		for (int i = 0; i < n;)
 			t[i++] = (char) (buffer[p++] & 0xff);
 		for (;;) {
-			if (((((b = buffer[p++]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) { // (b & 0xff) <= ' ' || b == ':'
+			if ((((b = buffer[p++] & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) { // (b & 0xff) <= ' ' || b == ':'
 				pos = p;
 				return new String(t, 0, n);
 			}
