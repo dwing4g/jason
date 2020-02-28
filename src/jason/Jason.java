@@ -111,76 +111,73 @@ public final class Jason {
 		}
 	}
 
-	static class FieldMetaMap {
-		private static final int PRIME2 = 0xbe1f14b1;
-		private static final int PRIME3 = 0xb4b82e39;
-		private static final float LOAD_FACTOR = 0.5f;
-		private static final int ZERO_KEY = 0;
-		private int mask; // [0,0x3fff_ffff]
-		private int[] keyTable;
-		private FieldMeta[] valueTable;
-		private @Nullable FieldMeta zeroValue;
-		private boolean hasZeroValue;
-		private int pushIterations; // [1,2,4,8,11,16,22,...,4096]
-		private int hashShift; // [0,1,...30]
-		private int size;
-		private int capacity; // [1,2,4,8,...,0x4000_0000]
-		private int tableSize; // capacity + [0,stashSize]
-		private int threshold; // [1,0x4000_0000]
+	static final class FieldMetaNode {
+		final int key;
+		FieldMeta fieldMeta;
+		final FieldMetaNode next;
 
-		FieldMetaMap() {
-			int initialCapacity = 16;
-			mask = initialCapacity - 1;
-			pushIterations = Math.max(Math.min(initialCapacity, 8), (int) Math.sqrt(initialCapacity) >> 3);
-			hashShift = 31 - Integer.numberOfTrailingZeros(initialCapacity);
-			capacity = tableSize = initialCapacity;
-			threshold = (int) Math.ceil(initialCapacity * LOAD_FACTOR);
-			initialCapacity += (int) Math.ceil(Math.log(initialCapacity)) * 2;
-			keyTable = new int[initialCapacity];
-			valueTable = new FieldMeta[initialCapacity];
+		FieldMetaNode(int key, FieldMeta fieldMeta, FieldMetaNode next) {
+			this.key = key;
+			this.fieldMeta = fieldMeta;
+			this.next = next;
+		}
+	}
+
+	static class FieldMetaMap {
+		private final int hashShift; // [0,1,...30]
+		private final int mask; // [0,0x3fff_ffff]
+		private final int[] keyTable;
+		private final FieldMeta[] valueTable;
+		// final FieldMeta[] fieldMetas;
+		private final int pushIterations; // [1,2,4,8,11,16,22,...,4096]
+		private @Nullable FieldMetaNode stashHead;
+
+		FieldMetaMap(int size) {
+			hashShift = 32 - Integer.numberOfLeadingZeros(size * 2 - 1);
+			int capacity = 1 << hashShift;
+			mask = capacity - 1;
+			keyTable = new int[capacity];
+			valueTable = new FieldMeta[capacity];
+			// fieldMetas = new FieldMeta[size];
+			pushIterations = Math.max(Math.min(capacity, 8), (int) Math.sqrt(capacity) >> 3);
 		}
 
 		int hash2(int h) {
-			h *= PRIME2;
-			return (h ^ (h >>> hashShift)) & mask;
+			h *= 0xbe1f14b1;
+			return (h ^ (h >> hashShift)) & mask;
 		}
 
 		int hash3(int h) {
-			h *= PRIME3;
-			return (h ^ (h >>> hashShift)) & mask;
+			h *= 0xb4b82e39;
+			return (h ^ (h >> hashShift)) & mask;
 		}
 
 		@Nullable
 		FieldMeta get(int key) {
-			if (key == ZERO_KEY)
-				return hasZeroValue ? zeroValue : null;
-			int[] kt = keyTable;
-			int idx = key & mask;
-			if (kt[idx] != key) {
-				idx = hash2(key);
-				if (kt[idx] != key) {
-					idx = hash3(key);
-					if (kt[idx] != key) {
-						for (int i = capacity, n = tableSize; i < n; i++)
-							if (kt[i] == key)
-								return valueTable[i];
-						return null;
-					}
-				}
+			if (key != 0) {
+				int[] kt = keyTable;
+				int idx;
+				if (kt[idx = key & mask] == key || kt[idx = hash2(key)] == key || kt[idx = hash3(key)] == key)
+					return valueTable[idx];
 			}
-			return valueTable[idx];
+			for (FieldMetaNode node = stashHead; node != null; node = node.next)
+				if (node.key == key)
+					return node.fieldMeta;
+			return null;
 		}
 
 		@Nullable
 		FieldMeta put(int key, @Nullable FieldMeta value) {
-			if (key == ZERO_KEY) {
-				FieldMeta oldValue = zeroValue;
-				zeroValue = value;
-				if (!hasZeroValue) {
-					hasZeroValue = true;
-					size++;
+			if (key == 0) {
+				for (FieldMetaNode node = stashHead; node != null; node = node.next) {
+					if (node.key == key) {
+						FieldMeta oldValue = node.fieldMeta;
+						node.fieldMeta = value;
+						return oldValue;
+					}
 				}
-				return oldValue;
+				stashHead = new FieldMetaNode(key, value, stashHead);
+				return null;
 			}
 
 			int[] kt = keyTable;
@@ -203,50 +200,34 @@ public final class Jason {
 				vt[idx3] = value;
 				return oldValue;
 			}
-
-			for (int i = capacity, n = tableSize; i < n; i++) {
-				if (kt[i] == key) {
-					FieldMeta oldValue = vt[i];
-					vt[i] = value;
+			for (FieldMetaNode node = stashHead; node != null; node = node.next) {
+				if (node.key == key) {
+					FieldMeta oldValue = node.fieldMeta;
+					node.fieldMeta = value;
 					return oldValue;
 				}
 			}
 
-			if (key1 == ZERO_KEY) {
+			if (key1 == 0) {
 				kt[idx1] = key;
 				vt[idx1] = value;
-				size++;
 				return null;
 			}
-			if (key2 == ZERO_KEY) {
+			if (key2 == 0) {
 				kt[idx2] = key;
 				vt[idx2] = value;
-				size++;
 				return null;
 			}
-			if (key3 == ZERO_KEY) {
+			if (key3 == 0) {
 				kt[idx3] = key;
 				vt[idx3] = value;
-				size++;
 				return null;
 			}
 
-			if (size >= threshold) {
-				resize(capacity << 1);
-				return put(key, value);
-			}
-			if (push(key, value, idx1, key1, idx2, key2, idx3, key3))
-				size++;
-			return null;
-		}
-
-		boolean push(int key, @Nullable FieldMeta value, int idx1, int key1, int idx2, int key2, int idx3, int key3) {
-			int[] kt = keyTable;
-			FieldMeta[] vt = valueTable;
 			int m = mask, evictedKey;
 			FieldMeta evictedValue;
 			ThreadLocalRandom rand = ThreadLocalRandom.current();
-			for (int i = 0, pis = pushIterations;;) {
+			for (int pis = pushIterations;; key = evictedKey, value = evictedValue) {
 				switch (rand.nextInt(3)) {
 				case 0:
 					evictedKey = key1;
@@ -268,86 +249,25 @@ public final class Jason {
 					break;
 				}
 
-				idx1 = evictedKey & m;
-				key1 = kt[idx1];
-				if (key1 == ZERO_KEY) {
+				if ((key1 = kt[idx1 = evictedKey & m]) == 0) {
 					kt[idx1] = evictedKey;
 					vt[idx1] = evictedValue;
-					return true;
+					return null;
 				}
-				idx2 = hash2(evictedKey);
-				key2 = kt[idx2];
-				if (key2 == ZERO_KEY) {
+				if ((key2 = kt[idx2 = hash2(evictedKey)]) == 0) {
 					kt[idx2] = evictedKey;
 					vt[idx2] = evictedValue;
-					return true;
+					return null;
 				}
-				idx3 = hash3(evictedKey);
-				key3 = kt[idx3];
-				if (key3 == ZERO_KEY) {
+				if ((key3 = kt[idx3 = hash3(evictedKey)]) == 0) {
 					kt[idx3] = evictedKey;
 					vt[idx3] = evictedValue;
-					return true;
+					return null;
 				}
-				if (++i == pis)
-					break;
-				key = evictedKey;
-				value = evictedValue;
-			}
-
-			if (tableSize == kt.length) {
-				resize(capacity << 1);
-				put(evictedKey, evictedValue);
-				return false;
-			}
-			int idx = tableSize++;
-			kt[idx] = evictedKey;
-			vt[idx] = evictedValue;
-			return true;
-		}
-
-		void resize(int newCapacity) // [1,2,4,8,...,0x4000_0000]
-		{
-			int oldEndIndex = tableSize;
-			mask = newCapacity - 1;
-			pushIterations = Math.max(Math.min(newCapacity, 8), (int) Math.sqrt(newCapacity) >> 3);
-			hashShift = 31 - Integer.numberOfTrailingZeros(newCapacity);
-			capacity = tableSize = newCapacity;
-			threshold = (int) Math.ceil(newCapacity * LOAD_FACTOR);
-			newCapacity += (int) Math.ceil(Math.log(newCapacity)) * 2;
-			int[] oldKeyTable = keyTable, kt = new int[newCapacity];
-			FieldMeta[] oldValueTable = valueTable, vt = new FieldMeta[newCapacity];
-			keyTable = kt;
-			valueTable = vt;
-
-			if (size <= (hasZeroValue ? 1 : 0))
-				return;
-			for (int i = 0; i < oldEndIndex; i++) {
-				int key = oldKeyTable[i];
-				if (key == ZERO_KEY)
-					continue;
-				FieldMeta value = oldValueTable[i];
-				int idx1 = key & mask, key1 = kt[idx1];
-				if (key1 == ZERO_KEY) {
-					kt[idx1] = key;
-					vt[idx1] = value;
-					continue;
+				if (--pis <= 0) {
+					stashHead = new FieldMetaNode(evictedKey, evictedValue, stashHead);
+					return null;
 				}
-				int idx2 = hash2(key), key2 = kt[idx2];
-				if (key2 == ZERO_KEY) {
-					kt[idx2] = key;
-					vt[idx2] = value;
-					continue;
-				}
-				int idx3 = hash3(key), key3 = kt[idx3];
-				if (key3 == ZERO_KEY) {
-					kt[idx3] = key;
-					vt[idx3] = value;
-					continue;
-				}
-				push(key, value, idx1, key1, idx2, key2, idx3, key3);
-				kt = keyTable;
-				vt = valueTable;
 			}
 		}
 	}
@@ -356,7 +276,6 @@ public final class Jason {
 		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
 		final @NonNull Class<T> klass;
 		final @Nullable Constructor<T> ctor;
-		private final FieldMeta[] fieldMetas;
 		@Nullable
 		Parser<T> parser; // user custom parser
 
@@ -382,7 +301,17 @@ public final class Jason {
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
 		}
 
+		private static int getFieldCount(Class<?> klass) {
+			int n = 0;
+			for (Class<?> c = klass; c != Object.class; c = c.getSuperclass())
+				for (Field field : c.getDeclaredFields())
+					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)
+						n++;
+			return n;
+		}
+
 		ClassMeta(@NonNull Class<T> klass) {
+			super(getFieldCount(klass));
 			this.klass = klass;
 			Constructor<T> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
@@ -399,10 +328,9 @@ public final class Jason {
 			}
 			ctor = ct;
 			ArrayList<Class<? super T>> classes = new ArrayList<>(2);
-			ArrayList<FieldMeta> fieldMetaList = new ArrayList<>();
 			for (Class<? super T> c = klass; c != Object.class; c = c.getSuperclass())
 				classes.add(c);
-			for (int i = classes.size() - 1; i >= 0; i--) {
+			for (int i = classes.size() - 1/*, j = 0*/; i >= 0; i--) {
 				Class<? super T> c = classes.get(i);
 				for (Field field : c.getDeclaredFields()) {
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
@@ -439,13 +367,12 @@ public final class Jason {
 						type = TYPE_CUSTOM;
 					String name = ensureNonNull(field.getName());
 					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
-					FieldMeta oldFieldMeta = put(getKeyHash(name), fieldMeta);
-					if (oldFieldMeta != null) // bad luck! try to call setKeyHashMultiplier with another prime number
-						throw new IllegalStateException("conflicted field name: " + oldFieldMeta.name + " & " + name);
-					fieldMetaList.add(fieldMeta);
+					FieldMeta oldMeta = put(getKeyHash(fieldMeta.name), fieldMeta);
+					if (oldMeta != null) // bad luck! try to call setKeyHashMultiplier with another prime number
+						throw new IllegalStateException("conflicted fields: " + oldMeta.name + " & " + fieldMeta.name);
+					// fieldMetas[j++] = fieldMeta;
 				}
 			}
-			fieldMetas = fieldMetaList.toArray(new FieldMeta[fieldMetaList.size()]);
 		}
 
 		public @Nullable Parser<T> getParser() {
@@ -460,15 +387,6 @@ public final class Jason {
 		@Deprecated
 		public void setParserUnsafe(@Nullable Parser<?> p) { // DANGEROUS! only for special purpose
 			parser = (Parser<T>) p;
-		}
-
-		int size() {
-			return fieldMetas.length;
-		}
-
-		@NonNull
-		FieldMeta getByIdx(int idx) {
-			return ensureNonNull(fieldMetas[idx]);
 		}
 	}
 
