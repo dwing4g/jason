@@ -1272,8 +1272,8 @@ public final class Jason {
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
-					if (i >= 0xCCC_CCCC_CCCC_CCCCL) { // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
-						d = i;
+					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
+						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
 						useDouble = 2;
 						do
 							d = d * 10 + c;
@@ -1369,8 +1369,8 @@ public final class Jason {
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
-					if (i >= 0xCCC_CCCC_CCCC_CCCCL) { // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
-						d = i;
+					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
+						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
 						useDouble = 2;
 						do
 							d = d * 10 + c;
@@ -1467,8 +1467,8 @@ public final class Jason {
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
-					if (i >= 0xCCC_CCCC_CCCC_CCCCL) { // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
-						d = i;
+					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
+						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
 						useDouble = 2;
 						do
 							d = d * 10 + c;
