@@ -2,7 +2,7 @@ package jason;
 
 import java.nio.charset.StandardCharsets;
 
-public class JasonWriter {
+public final class JasonWriter {
 	//@formatter:off
 	private static final long DOUBLE_SIGN_MASK        = 0x8000_0000_0000_0000L;
 	private static final long DOUBLE_EXP_MASK         = 0x7FF0_0000_0000_0000L;
@@ -56,8 +56,94 @@ public class JasonWriter {
 			30, 56, 83, 109, 136, 162, 189, 216, 242, 269, 295, 322, 348, 375, 402, 428, 455, 481, 508, 534, 561, 588,
 			614, 641, 667, 694, 720, 747, 774, 800, 827, 853, 880, 907, 933, 960, 986, 1013, 1039, 1066 };
 
-	byte[] buf = new byte[32];
+	private static final byte[] ESCAPE = { //@formatter:off
+		//   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
+			'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'b', 't', 'n', 'u', 'f', 'r', 'u', 'u', // 0x0x
+			'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', // 0x1x
+			 0 ,  0 , '"',  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 , // 0x2x
+			 0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 , // 0x3x
+			 0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 , // 0x4x
+			 0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,'\\',  0 ,  0 ,  0 , // 0x5x
+			 0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 , // 0x6x
+			 0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 ,  0 , // 0x7x
+	}; //@formatter:on
+
+	private static final byte[] HC = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+	public interface BlockAllocator {
+		Block alloc();
+
+		default void free(@SuppressWarnings("unused") Block block) {
+		}
+	}
+
+	public static class Block {
+		public byte[] buf;
+		public int len;
+		Block next;
+	}
+
+	final BlockAllocator allocator;
+	Block tail;
+	byte[] buf;
 	int pos;
+
+	public JasonWriter() {
+		this(null);
+	}
+
+	public JasonWriter(BlockAllocator allocator) {
+		if (allocator == null) {
+			allocator = () -> {
+				Block block = new Block();
+				block.buf = new byte[4096];
+				return block;
+			};
+		}
+		this.allocator = allocator;
+		Block block = allocator.alloc();
+		block.next = block;
+		tail = block;
+		buf = block.buf;
+	}
+
+	public void close() {
+		for (Block block = tail.next;; block = block.next) {
+			allocator.free(block);
+			if (block == tail)
+				break;
+		}
+		tail = null;
+		buf = null;
+		pos = 0;
+	}
+
+	public void ensureSize(int size) {
+		//TODO
+	}
+
+	public byte[] toBytes() {
+		tail.len = pos;
+		int p = 0;
+		for (Block block = tail.next;; block = block.next) {
+			p += block.len;
+			if (block == tail)
+				break;
+		}
+		byte[] res = new byte[p];
+		p = 0;
+		for (Block block = tail.next;; block = block.next) {
+			System.arraycopy(block.buf, 0, res, p, block.len);
+			p += block.len;
+			if (block == tail)
+				return res;
+		}
+	}
+
+	@Override
+	public String toString() {
+		return new String(toBytes(), StandardCharsets.UTF_8); //TODO: optimize
+	}
 
 	static long umulHigh1(long a, long b) { // b < 0
 		b &= 0x7FFF_FFFF_FFFF_FFFFL;
@@ -500,19 +586,64 @@ public class JasonWriter {
 		}
 	}
 
-	public static void main(String[] args) {
-		double[] tests = { 3.1415926, 31415926, 0.31415926, 314.15926, 3.1415926e7, 3.1415926E-7, 0, 1.0 };
-		JasonWriter jw = new JasonWriter();
-		int n = 0;
-		for (int i = 0; i < 10_000_000; i++) {
-			for (int j = 0; j < 8; j++) {
-//				n += Double.toString(tests[j]).length();
-				jw.pos = 0;
-				jw.writeDouble(tests[j]);
-				n += jw.pos;
-//				System.out.println(new String(jw.buf, 0, jw.pos));
+	void writeString(final byte[] str) {
+		writeString(str, 0, str.length);
+	}
+
+	void writeString(final byte[] str, int p, int n) {
+		buf[pos++] = '"';
+		int i = p, q = p + n, c;
+		for (byte b; i < q;) {
+			if ((c = str[i++]) >= 0 && (b = ESCAPE[c]) != 0) {
+				if ((n = i - p - 1) > 0) {
+					System.arraycopy(str, p, buf, pos, n);
+					pos += n;
+				}
+				p = i;
+				buf[pos++] = '\\';
+				buf[pos++] = b;
+				if (b == 'u') {
+					buf[pos++] = '0';
+					buf[pos++] = '0';
+					buf[pos++] = (byte) ('0' + (c >> 4));
+					buf[pos++] = HC[c & 0xf];
+				}
 			}
 		}
-		System.out.format("%d", n); // 660000000
+		if ((n = i - p) > 0) {
+			System.arraycopy(str, p, buf, pos, n);
+			pos += n;
+		}
+		buf[pos++] = '"';
+	}
+
+	void writeString(final String str) {
+		buf[pos++] = '"';
+		for (int i = 0, n = str.length(); i < n; i++) {
+			final int c = str.charAt(i);
+			if (c < 0x80) {
+				byte b = ESCAPE[c];
+				if (b == 0)
+					buf[pos++] = (byte) c;
+				else {
+					buf[pos++] = '\\';
+					buf[pos++] = b;
+					if (b == 'u') {
+						buf[pos++] = '0';
+						buf[pos++] = '0';
+						buf[pos++] = (byte) ('0' + (c >> 4));
+						buf[pos++] = HC[c & 0xf];
+					}
+				}
+			} else if (c < 0x800) { // 110x xxxx  10xx xxxx
+				buf[pos++] = (byte) (0xc0 + (c >> 6));
+				buf[pos++] = (byte) (0x80 + (c & 0x3f));
+			} else { // 1110 xxxx  10xx xxxx  10xx xxxx
+				buf[pos++] = (byte) (0xe0 + (c >> 12));
+				buf[pos++] = (byte) (0x80 + ((c >> 6) & 0x3f));
+				buf[pos++] = (byte) (0x80 + (c & 0x3f));
+			}
+		}
+		buf[pos++] = '"';
 	}
 }

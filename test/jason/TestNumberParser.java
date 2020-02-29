@@ -1,6 +1,22 @@
 package jason;
 
 public final class TestNumberParser {
+	public static void main2() {
+		double[] tests = { 3.1415926, 31415926, 0.31415926, 314.15926, 3.1415926e7, 3.1415926E-7, 0, 1.0 };
+		JasonWriter jw = new JasonWriter();
+		int n = 0;
+		for (int i = 0; i < 10_000_000; i++) {
+			for (int j = 0; j < 8; j++) {
+//				n += Double.toString(tests[j]).length();
+				jw.pos = 0;
+				jw.writeDouble(tests[j]);
+				n += jw.pos;
+//				System.out.println(new String(jw.buf, 0, jw.pos));
+			}
+		}
+		System.out.format("%d", n); // 660000000
+	}
+
 	public static void main(String[] args) {
 		byte[][] tests = { "3.1415926 ".getBytes(), "31415926 ".getBytes(), "0.31415926 ".getBytes(),
 				"314.15926 ".getBytes(), "3.1415926e7 ".getBytes(), "3.1415926E-7 ".getBytes(), "0 ".getBytes(),

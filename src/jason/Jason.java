@@ -39,6 +39,7 @@ public final class Jason {
 	private static final @NonNull Double POSITIVE_INFINITY = ensureNonNull(Double.valueOf(Double.POSITIVE_INFINITY));
 
 	private static final byte[] ESCAPE = { // @formatter:off
+		//   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
 			' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', // 0x3x
 			'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', // 0x4x
