@@ -1,6 +1,15 @@
 package jason;
 
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
+import java.util.Map;
+import org.eclipse.jdt.annotation.NonNull;
+import org.eclipse.jdt.annotation.Nullable;
+import jason.Jason.ClassMeta;
+import jason.Jason.FieldMeta;
+import jason.Jason.Writer;
+import static jason.Jason.*;
 
 public final class JasonWriter {
 	//@formatter:off
@@ -70,33 +79,54 @@ public final class JasonWriter {
 
 	private static final byte[] HC = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
-	public interface BlockAllocator {
-		Block alloc();
+	private static final byte[] EMPTY = new byte[0];
 
-		default void free(@SuppressWarnings("unused") Block block) {
+	public interface BlockAllocator {
+		@NonNull
+		Block alloc(int minLen);
+
+		default @NonNull Block alloc() {
+			return alloc(4096);
+		}
+
+		default void free(@SuppressWarnings("unused") @NonNull Block block) {
 		}
 	}
 
 	public static class Block {
 		public byte[] buf;
 		public int len;
+		@SuppressWarnings("null")
+		@NonNull
 		Block next;
 	}
 
-	final BlockAllocator allocator;
-	Block tail;
-	byte[] buf;
-	int pos;
+	private static final @NonNull ThreadLocal<JasonWriter> localWriters = ensureNonNull(
+			ThreadLocal.withInitial(JasonWriter::new));
+
+	public static @NonNull JasonWriter local() {
+		return ensureNonNull(localWriters.get());
+	}
+
+	public static void removeLocal() {
+		localWriters.remove();
+	}
+
+	private final @NonNull BlockAllocator allocator;
+	private Block tail;
+	private byte[] buf;
+	private int pos;
+	private int size; // sum of all blocks len except tail
 
 	public JasonWriter() {
 		this(null);
 	}
 
-	public JasonWriter(BlockAllocator allocator) {
+	public JasonWriter(@Nullable BlockAllocator allocator) {
 		if (allocator == null) {
-			allocator = () -> {
+			allocator = minLen -> {
 				Block block = new Block();
-				block.buf = new byte[4096];
+				block.buf = new byte[Math.max(minLen, 4096)];
 				return block;
 			};
 		}
@@ -107,19 +137,284 @@ public final class JasonWriter {
 		buf = block.buf;
 	}
 
-	public void close() {
+	public JasonWriter clear() { // left the empty head block
+		Block head = tail.next;
+		for (Block block = head; block != tail; block = block.next)
+			allocator.free(block);
+		tail = head;
+		head.next = head;
+		buf = head.buf;
+		pos = 0;
+		size = 0;
+		return this;
+	}
+
+	public JasonWriter free() {
 		for (Block block = tail.next;; block = block.next) {
 			allocator.free(block);
 			if (block == tail)
 				break;
 		}
 		tail = null;
-		buf = null;
+		buf = EMPTY;
+		pos = 0;
+		size = 0;
+		return this;
+	}
+
+	public int size() {
+		return size + pos;
+	}
+
+	public int charSize() {
+		int len = 0;
+		tail.len = pos;
+		for (Block block = tail.next;; block = block.next) {
+			byte[] buffer = block.buf;
+			for (int i = 0, n = block.len; i < n; len++) {
+				int b = buffer[i];
+				if (b >= 0)
+					i++;
+				else if (b >= -0x20)
+					i += 3;
+				else
+					i += 2;
+			}
+			if (block == tail)
+				return len;
+		}
+	}
+
+	public boolean hasWideChar() {
+		tail.len = pos;
+		for (Block block = tail.next;; block = block.next) {
+			byte[] buffer = block.buf;
+			for (int i = 0, n = block.len; i < n; i++)
+				if (buffer[i] < 0)
+					return true;
+			if (block == tail)
+				return false;
+		}
+	}
+
+	void appendBlock(int len) {
+		Block block = allocator.alloc(len);
+		if (tail != null) {
+			block.next = tail.next;
+			tail.next = block;
+			tail.len = pos;
+		} else
+			block.next = block;
+		tail = block;
+		buf = block.buf;
+		size += pos;
 		pos = 0;
 	}
 
-	public void ensureSize(int size) {
-		//TODO
+	public void ensure(int len) {
+		if (pos + len > buf.length)
+			appendBlock(len);
+	}
+
+	public @NonNull JasonWriter write(@Nullable Object obj) {
+		if (obj == null) {
+			ensure(5);
+			buf[pos++] = 'n';
+			buf[pos++] = 'u';
+			buf[pos++] = 'l';
+			buf[pos++] = 'l';
+			return this;
+		}
+		Class<?> klass = obj.getClass();
+		switch (ClassMeta.getType(klass)) {
+		case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
+			if ((Boolean) obj) {
+				ensure(5);
+				buf[pos++] = 't';
+				buf[pos++] = 'r';
+				buf[pos++] = 'u';
+				buf[pos++] = 'e';
+			} else {
+				ensure(6);
+				buf[pos++] = 'f';
+				buf[pos++] = 'a';
+				buf[pos++] = 'l';
+				buf[pos++] = 's';
+				buf[pos++] = 'e';
+			}
+			break;
+		case TYPE_WRAP_FLAG + TYPE_BYTE:
+			ensure(5);
+			write(((Byte) obj).byteValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_SHORT:
+			ensure(7);
+			write(((Short) obj).shortValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_CHAR:
+			ensure(7);
+			write(((Character) obj).charValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_INT:
+			ensure(12);
+			write(((Integer) obj).intValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_LONG:
+			ensure(21);
+			write(((Long) obj).longValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_FLOAT:
+			ensure(26);
+			write(((Float) obj).floatValue());
+			break;
+		case TYPE_WRAP_FLAG + TYPE_DOUBLE:
+			ensure(26);
+			write(((Double) obj).doubleValue());
+			break;
+		case TYPE_STRING:
+			String s = (String) obj;
+			ensure(s.length() * 6 + 3); // "xxxxxx"
+			write(s);
+			break;
+		case TYPE_POS:
+			ensure(12);
+			write(((Pos) obj).pos);
+			break;
+		case TYPE_OBJECT:
+		case TYPE_CUSTOM:
+			boolean comma = false;
+			if (obj instanceof Collection) {
+				buf[pos++] = '[';
+				for (Object o : (Collection<?>) obj) {
+					if (comma)
+						buf[pos++] = ',';
+					write(o);
+					comma = true;
+				}
+				ensure(2);
+				buf[pos++] = ']';
+				break;
+			}
+			if (klass.isArray()) {
+				buf[pos++] = '[';
+				for (int i = 0, n = Array.getLength(obj); i < n; i++) {
+					if (comma)
+						buf[pos++] = ',';
+					write(Array.get(obj, i));
+					comma = true;
+				}
+				ensure(2);
+				buf[pos++] = ']';
+				break;
+			}
+			if (obj instanceof Map) {
+				ensure(1);
+				buf[pos++] = '{';
+				for (Map.Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+					if (comma)
+						buf[pos++] = ',';
+					s = String.valueOf(e.getKey());
+					if (s == null)
+						s = "null";
+					ensure(s.length() * 6 + 3); // "xxxxxx":
+					write(s);
+					buf[pos++] = ':';
+					write(e.getValue());
+					comma = true;
+				}
+				ensure(2);
+				buf[pos++] = '}';
+				break;
+			}
+			ClassMeta<?> classMeta = getClassMeta(klass);
+			Writer<?> writer = classMeta.writer;
+			if (writer != null) {
+				writer.write0(this, classMeta, obj);
+				break;
+			}
+			ensure(1);
+			buf[pos++] = '{';
+			for (FieldMeta fieldMeta : classMeta.fieldMetas) {
+				int type = fieldMeta.type;
+				byte[] name = fieldMeta.name;
+				ensure(name.length + 4); // ,"xxxxxx":
+				int posBegin = pos;
+				if (comma)
+					buf[pos++] = ',';
+				write(name);
+				buf[pos++] = ':';
+				long offset = fieldMeta.offset;
+				switch (type) {
+				case TYPE_BOOLEAN:
+					if (unsafe.getBoolean(obj, offset)) {
+						ensure(4);
+						buf[pos++] = 't';
+						buf[pos++] = 'r';
+						buf[pos++] = 'u';
+						buf[pos++] = 'e';
+					} else {
+						ensure(5);
+						buf[pos++] = 'f';
+						buf[pos++] = 'a';
+						buf[pos++] = 'l';
+						buf[pos++] = 's';
+						buf[pos++] = 'e';
+					}
+					break;
+				case TYPE_BYTE:
+					ensure(4);
+					write(unsafe.getByte(obj, offset));
+					break;
+				case TYPE_SHORT:
+					ensure(6);
+					write(unsafe.getShort(obj, offset));
+					break;
+				case TYPE_CHAR:
+					ensure(6);
+					write(unsafe.getChar(obj, offset));
+					break;
+				case TYPE_INT:
+					ensure(11);
+					write(unsafe.getInt(obj, offset));
+					break;
+				case TYPE_LONG:
+					ensure(20);
+					write(unsafe.getLong(obj, offset));
+					break;
+				case TYPE_FLOAT:
+					ensure(25);
+					write(unsafe.getFloat(obj, offset));
+					break;
+				case TYPE_DOUBLE:
+					ensure(25);
+					write(unsafe.getDouble(obj, offset));
+					break;
+				case TYPE_STRING:
+					s = (String) unsafe.getObject(obj, offset);
+					if (s == null) {
+						ensure(4);
+						buf[pos++] = 'n';
+						buf[pos++] = 'u';
+						buf[pos++] = 'l';
+						buf[pos++] = 'l';
+						break;
+					}
+					ensure(s.length() * 6 + 2); // "xxxxxx"
+					write(s);
+					break;
+				case TYPE_POS:
+					pos = posBegin;
+					continue;
+				default:
+					write(unsafe.getObject(obj, offset));
+					break;
+				}
+				comma = true;
+			}
+			ensure(2);
+			buf[pos++] = '}';
+		}
+		return this;
 	}
 
 	public byte[] toBytes() {
@@ -140,9 +435,56 @@ public final class JasonWriter {
 		}
 	}
 
+	public char[] toChars() {
+		char[] res = new char[charSize()];
+		int p = 0;
+		tail.len = pos;
+		for (Block block = tail.next;; block = block.next) {
+			byte[] buffer = block.buf;
+			for (int i = 0, n = block.len; i < n;) {
+				int b = buffer[i];
+				if (b >= 0) {
+					res[p++] = (char) b;
+					i++;
+				} else if (b >= -0x20) {
+					res[p++] = (char) (((b & 0xf) << 12) + ((buffer[i + 1] & 0x3f) << 6) + (buffer[i + 2] & 0x3f));
+					i += 3;
+				} else {
+					res[p++] = (char) (((b & 0x1f) << 6) + (buffer[i + 1] & 0x3f));
+					i += 2;
+				}
+			}
+			if (block == tail)
+				return res;
+		}
+	}
+
 	@Override
-	public String toString() {
-		return new String(toBytes(), StandardCharsets.UTF_8); //TODO: optimize
+	public @NonNull String toString() {
+		if (BYTE_STRING) { // for JDK9+
+			byte[] bytes = toBytes();
+			int i = 0, n = bytes.length;
+			for (; i < n; i++)
+				if (bytes[i] < 0)
+					break;
+			if (i == n) {
+				try {
+					String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
+					unsafe.putObject(str, STRING_VALUE_OFFSET, bytes);
+					return str;
+				} catch (InstantiationException e) {
+				}
+			}
+			return new String(bytes, StandardCharsets.UTF_8);
+		}
+		char[] chars = toChars();
+		try {
+			String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
+			unsafe.putObject(str, STRING_VALUE_OFFSET, chars);
+			return str;
+		} catch (InstantiationException e) {
+			return new String(chars);
+		}
 	}
 
 	static long umulHigh1(long a, long b) { // b < 0
@@ -360,7 +702,7 @@ public final class JasonWriter {
 		buf[pos++] = (byte) ('0' + k % 10);
 	}
 
-	public void writeDouble(double d, final int maxDecimalPlaces) {
+	public void write(double d, final int maxDecimalPlaces) {
 		final long u = Double.doubleToRawLongBits(d);
 		if ((u & (DOUBLE_EXP_MASK | DOUBLE_SIGNIFICAND_MASK)) == 0) { // d == 0
 			if ((u & DOUBLE_SIGN_MASK) != 0)
@@ -377,22 +719,14 @@ public final class JasonWriter {
 		grisu2(d, maxDecimalPlaces);
 	}
 
-	public void writeDouble(final double d) {
-		writeDouble(d, 324);
+	public void write(final double d) {
+		write(d, 324);
 	}
 
-	public void writeFloat(final float f, final int maxDecimalPlaces) {
-		writeDouble(f, maxDecimalPlaces);
-	}
-
-	public void writeFloat(final float f) {
-		writeDouble(f, 324);
-	}
-
-	public void writeInt(int value) {
+	public void write(int value) {
 		if (value < 0) {
 			if (value == Integer.MIN_VALUE) {
-				writeLong(value);
+				write((long) value);
 				return;
 			}
 			buf[pos++] = '-';
@@ -452,7 +786,7 @@ public final class JasonWriter {
 		}
 	}
 
-	public void writeLong(long value) { // 7FFF_FFFF_FFFF_FFFF = 922_3372_0368_5477_5807
+	public void write(long value) { // 7FFF_FFFF_FFFF_FFFF = 922_3372_0368_5477_5807
 		if (value < 0) {
 			if (value == Long.MIN_VALUE) {
 				System.arraycopy("-9223372036854775808".getBytes(StandardCharsets.ISO_8859_1), 0, buf, pos, 20);
@@ -586,11 +920,11 @@ public final class JasonWriter {
 		}
 	}
 
-	void writeString(final byte[] str) {
-		writeString(str, 0, str.length);
+	public void write(final byte[] str) {
+		write(str, 0, str.length);
 	}
 
-	void writeString(final byte[] str, int p, int n) {
+	public void write(final byte[] str, int p, int n) {
 		buf[pos++] = '"';
 		int i = p, q = p + n, c;
 		for (byte b; i < q;) {
@@ -617,7 +951,7 @@ public final class JasonWriter {
 		buf[pos++] = '"';
 	}
 
-	void writeString(final String str) {
+	public void write(final String str) {
 		buf[pos++] = '"';
 		for (int i = 0, n = str.length(); i < n; i++) {
 			final int c = str.charAt(i);

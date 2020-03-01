@@ -11,7 +11,7 @@ public final class TestJsonParser {
 		byte[] bytes = "{\"b\":\"xyz\", \"a\":123,\"c\":{\"a\":456,\"b\":\"abc\"}}".getBytes();
 		long v = 0;
 		long t = System.nanoTime();
-		Jason jason = new Jason();
+		JasonReader jason = new JasonReader();
 		for (int i = 0; i < 10_000_000; ++i) {
 			C c = jason.buf(bytes).parse(C.class);
 			if (c == null)

@@ -1,38 +1,32 @@
 package jason;
 
-import java.util.Arrays;
-
 public class TestWriter {
 	static final JasonWriter jw = new JasonWriter();
-	static final Jason jason = new Jason();
+	static final JasonReader jason = new JasonReader();
 	static int count;
 
 	static void testInt(int d) {
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeInt(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+		jw.free().ensure(11);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		long d2 = jason.parseInt();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 20)
+		if (jw.size() > 11)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		count++;
 	}
 
 	static void testInt(int d, String s) {
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeInt(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+		jw.free().ensure(11);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		long d2 = jason.parseInt();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 20)
+		if (jw.size() > 11)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		if (!ss.equals(s))
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' != '" + s + "'");
@@ -42,33 +36,29 @@ public class TestWriter {
 	static void testLong(long d) {
 		if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE)
 			testInt((int) d);
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeLong(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+		jw.free().ensure(20);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		long d2 = jason.parseLong();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 20)
+		if (jw.size() > 20)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		count++;
 	}
 
 	static void testLong(long d, String s) {
 		if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE)
-			testInt((int) d, s);
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeLong(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+			testInt((int) d);
+		jw.free().ensure(20);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		long d2 = jason.parseLong();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 20)
+		if (jw.size() > 20)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		if (!ss.equals(s))
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' != '" + s + "'");
@@ -76,31 +66,27 @@ public class TestWriter {
 	}
 
 	static void testDouble(double d) {
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeDouble(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+		jw.free().ensure(25);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		double d2 = jason.parseDouble();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 25)
+		if (jw.size() > 25)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		count++;
 	}
 
 	static void testDouble(double d, String s) {
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeDouble(d);
-		jw.buf[jw.pos] = 0;
-		String ss = new String(jw.buf, 0, jw.pos);
-		jason.buf(jw.buf);
+		jw.free().ensure(25);
+		jw.write(d);
+		String ss = jw.toString();
+		jason.buf(jw.toBytes());
 		double d2 = jason.parseDouble();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
-		if (jw.pos > 25)
+		if (jw.size() > 25)
 			throw new IllegalStateException("too long size: " + d + " => '" + ss + "' => " + d2);
 		if (!ss.equals(s))
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' != '" + s + "'");
@@ -109,10 +95,9 @@ public class TestWriter {
 
 	static void testDouble(int maxDecimalPlaces, double d, String s) {
 		testDouble(d);
-		Arrays.fill(jw.buf, (byte) 0);
-		jw.pos = 0;
-		jw.writeDouble(d, maxDecimalPlaces);
-		String ss = new String(jw.buf, 0, jw.pos);
+		jw.free().ensure(25);
+		jw.write(d, maxDecimalPlaces);
+		String ss = jw.toString();
 		if (!ss.equals(s))
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' != '" + s + "'");
 		count++;
