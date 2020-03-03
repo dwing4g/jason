@@ -2,6 +2,7 @@ package jason;
 
 import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import org.eclipse.jdt.annotation.NonNull;
@@ -228,7 +229,7 @@ public final class JasonWriter {
 		Class<?> klass = obj.getClass();
 		switch (ClassMeta.getType(klass)) {
 		case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
-			if ((Boolean) obj) {
+			if (((Boolean) obj).booleanValue()) {
 				ensure(5);
 				buf[pos++] = 't';
 				buf[pos++] = 'r';
@@ -418,16 +419,19 @@ public final class JasonWriter {
 	}
 
 	public byte[] toBytes() {
+		Block block = tail.next;
+		if (block == tail)
+			return Arrays.copyOf(buf, pos);
 		tail.len = pos;
 		int p = 0;
-		for (Block block = tail.next;; block = block.next) {
+		for (;; block = block.next) {
 			p += block.len;
 			if (block == tail)
 				break;
 		}
 		byte[] res = new byte[p];
 		p = 0;
-		for (Block block = tail.next;; block = block.next) {
+		for (block = tail.next;; block = block.next) {
 			System.arraycopy(block.buf, 0, res, p, block.len);
 			p += block.len;
 			if (block == tail)
@@ -462,20 +466,27 @@ public final class JasonWriter {
 	@Override
 	public @NonNull String toString() {
 		if (BYTE_STRING) { // for JDK9+
-			byte[] bytes = toBytes();
-			int i = 0, n = bytes.length;
-			for (; i < n; i++)
+			byte[] bytes;
+			int i, n;
+			if (tail == tail.next) {
+				bytes = buf;
+				n = pos;
+			} else {
+				bytes = toBytes();
+				n = bytes.length;
+			}
+			for (i = 0; i < n; i++)
 				if (bytes[i] < 0)
 					break;
 			if (i == n) {
 				try {
 					String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
-					unsafe.putObject(str, STRING_VALUE_OFFSET, bytes);
+					unsafe.putObject(str, STRING_VALUE_OFFSET, bytes == buf ? Arrays.copyOf(bytes, n) : bytes);
 					return str;
 				} catch (InstantiationException e) {
 				}
 			}
-			return new String(bytes, StandardCharsets.UTF_8);
+			return new String(bytes, 0, n, StandardCharsets.UTF_8);
 		}
 		char[] chars = toChars();
 		try {

@@ -189,7 +189,15 @@ public final class JasonReader {
 	}
 
 	public boolean end() {
-		return pos >= buf.length;
+		return end(buf.length);
+	}
+
+	public boolean end(int len) {
+		for (; pos < len; pos++) {
+			if ((buf[pos] & 0xff) > ' ')
+				return false;
+		}
+		return true;
 	}
 
 	public int next() {
