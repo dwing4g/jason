@@ -273,6 +273,23 @@ public final class JasonReader {
 		return c;
 	}
 
+	public <T> @Nullable Collection<T> parseArray(@Nullable Collection<T> c, @NonNull Class<T> elemClass)
+			throws ReflectiveOperationException {
+		return next() == '[' ? parseArray0(c, elemClass) : c;
+	}
+
+	@SuppressWarnings("null")
+	<T> @NonNull Collection<T> parseArray0(@Nullable Collection<T> c, @NonNull Class<T> elemClass)
+			throws ReflectiveOperationException {
+		if (c == null)
+			c = new ArrayList<>();
+		ClassMeta<T> classMeta = getClassMeta(elemClass);
+		for (int b = skipNext(); b != ']'; b = skipVar())
+			c.add(parse(classMeta));
+		pos++;
+		return c;
+	}
+
 	public @Nullable Map<String, Object> parseMap(@Nullable Map<String, Object> m) throws ReflectiveOperationException {
 		return next() == '{' ? parseMap0(m) : m;
 	}
