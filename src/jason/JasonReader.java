@@ -10,6 +10,7 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import jason.Jason.ClassMeta;
 import jason.Jason.FieldMeta;
+import jason.Jason.Parser;
 import static jason.Jason.*;
 
 public final class JasonReader {
@@ -273,19 +274,22 @@ public final class JasonReader {
 		return c;
 	}
 
+	@SuppressWarnings("null")
 	public <T> @Nullable Collection<T> parseArray(@Nullable Collection<T> c, @NonNull Class<T> elemClass)
 			throws ReflectiveOperationException {
-		return next() == '[' ? parseArray0(c, elemClass) : c;
-	}
-
-	@SuppressWarnings("null")
-	<T> @NonNull Collection<T> parseArray0(@Nullable Collection<T> c, @NonNull Class<T> elemClass)
-			throws ReflectiveOperationException {
+		if (next() != '[')
+			return c;
 		if (c == null)
 			c = new ArrayList<>();
 		ClassMeta<T> classMeta = getClassMeta(elemClass);
-		for (int b = skipNext(); b != ']'; b = skipVar())
-			c.add(parse(classMeta));
+		Parser<T> parser = classMeta.parser;
+		if (parser != null) {
+			for (int b = skipNext(); b != ']'; b = skipVar())
+				c.add(parser.parse(this, classMeta, null));
+		} else {
+			for (int b = skipNext(); b != ']'; b = skipVar())
+				c.add(parse0(allocObj(classMeta), classMeta));
+		}
 		pos++;
 		return c;
 	}
@@ -309,32 +313,40 @@ public final class JasonReader {
 	}
 
 	public <T> @Nullable T parse(@Nullable Class<T> klass) throws ReflectiveOperationException {
-		if (klass == null)
-			return null;
-		ClassMeta<T> classMeta = getClassMeta(klass);
-		Parser<T> parser = classMeta.parser;
-		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
+		return klass != null ? parse(null, getClassMeta(klass)) : null;
 	}
 
 	public <T> @Nullable T parse(@Nullable ClassMeta<T> classMeta) throws ReflectiveOperationException {
-		if (classMeta == null || next() != '{')
-			return null;
-		Parser<T> parser = classMeta.parser;
-		return parser != null ? parser.parse(this, classMeta, null) : parse(allocObj(classMeta), classMeta);
+		return parse(null, classMeta);
 	}
 
 	public <T> @Nullable T parse(@Nullable T obj) throws ReflectiveOperationException {
-		if (obj == null || next() != '{')
-			return obj;
-		@SuppressWarnings("unchecked")
-		ClassMeta<T> classMeta = getClassMeta((Class<T>) obj.getClass());
-		Parser<T> parser = classMeta.parser;
-		return parser != null ? parser.parse(this, classMeta, obj) : parse(obj, classMeta);
+		return parse(obj, (ClassMeta<T>) null);
 	}
 
-	public <T> @Nullable T parse(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
+	public <T> @Nullable T parse(@Nullable T obj, @Nullable Class<? super T> klass)
+			throws ReflectiveOperationException {
+		return parse(obj, klass != null ? getClassMeta(klass) : null);
+	}
+
+	@SuppressWarnings("unchecked")
+	public <T> @Nullable T parse(@Nullable T obj, @Nullable ClassMeta<? super T> classMeta)
+			throws ReflectiveOperationException {
+		if (classMeta == null) {
+			if (obj == null)
+				return null;
+			classMeta = getClassMeta((Class<T>) obj.getClass());
+		}
+		Parser<? super T> parser = classMeta.parser;
+		if (parser != null)
+			return (T) parser.parse0(this, classMeta, obj);
 		if (next() != '{')
-			return null;
+			return obj;
+		return parse0(obj != null ? obj : (T) allocObj(classMeta), classMeta);
+	}
+
+	<T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) // next() must be '{'
+			throws ReflectiveOperationException {
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
 			if (fm == null)
@@ -400,7 +412,7 @@ public final class JasonReader {
 						Object newSubObj = parser.parse0(this, subClassMeta, subObj);
 						if (newSubObj != subObj)
 							unsafe.putObject(obj, offset, newSubObj);
-					} else if (parse(subObj, subClassMeta) == null)
+					} else if (parse0(subObj, subClassMeta) == null)
 						unsafe.putObject(obj, offset, null);
 				} else {
 					ClassMeta<?> subClassMeta = fm.classMeta;
@@ -408,7 +420,7 @@ public final class JasonReader {
 						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 					Parser<?> parser = subClassMeta.parser;
 					unsafe.putObject(obj, offset, parser != null ? parser.parse0(this, subClassMeta, null)
-							: parse(allocObj(subClassMeta), subClassMeta));
+							: parse0(allocObj(subClassMeta), subClassMeta));
 				}
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
@@ -504,7 +516,7 @@ public final class JasonReader {
 								c.add(parser.parse0(this, subClassMeta, null));
 						} else {
 							for (; b != ']'; b = skipVar())
-								c.add(parse(allocObj(subClassMeta), subClassMeta));
+								c.add(parse0(allocObj(subClassMeta), subClassMeta));
 						}
 						break;
 					}
@@ -627,7 +639,7 @@ public final class JasonReader {
 								String k = parseStringKey(b);
 								if (next() == ':')
 									skipNext();
-								m.put(k, parse(allocObj(subClassMeta), subClassMeta));
+								m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
 							}
 						}
 						break;

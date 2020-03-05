@@ -51,12 +51,28 @@ public final class Test {
 		C c = new C();
 		c.a.a = 1;
 		((B) c.a).b = -1;
-		System.out.println(JasonWriter.local().write(c).toString());
+		System.out.println(JasonWriter.local().clear().write(c).toString());
+	}
+
+	public static void test4() {
+		C c = new C();
+		c.a.a = 1;
+		((B) c.a).b = -1;
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_PRETTY_FORMAT).write(c).toString());
+	}
+
+	public static void test5() {
+		C c = new C();
+		c.a.a = 1;
+		((B) c.a).b = -1;
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_NO_QUOTE_KEY).write(c).toString());
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
 		test3();
+		test4();
+		test5();
 	}
 }
