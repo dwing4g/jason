@@ -265,6 +265,7 @@ public final class JasonWriter {
 			buf[pos++] = 'l';
 			return this;
 		}
+		boolean noQuote = (flags & FLAG_NO_QUOTE_KEY) != 0;
 		Class<?> klass = obj.getClass();
 		switch (ClassMeta.getType(klass)) {
 		case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
@@ -314,7 +315,7 @@ public final class JasonWriter {
 		case TYPE_STRING:
 			String s = (String) obj;
 			ensure(s.length() * 6 + 3); // "xxxxxx"
-			write(s);
+			write(s, false);
 			break;
 		case TYPE_POS:
 			ensure(12);
@@ -335,16 +336,20 @@ public final class JasonWriter {
 					}
 					ensure(2);
 				} else {
-					tabs++;
 					for (Object o : (Collection<?>) obj) {
 						if (comma)
 							buf[pos++] = ',';
+						else {
+							tabs++;
+							comma = true;
+						}
 						writeNewLineTabs();
 						write(o);
-						comma = true;
 					}
-					tabs--;
-					writeNewLineTabs();
+					if (comma) {
+						tabs--;
+						writeNewLineTabs();
+					}
 				}
 				buf[pos++] = ']';
 				break;
@@ -361,16 +366,20 @@ public final class JasonWriter {
 					}
 					ensure(2);
 				} else {
-					tabs++;
 					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
 						if (comma)
 							buf[pos++] = ',';
+						else {
+							tabs++;
+							comma = true;
+						}
 						writeNewLineTabs();
 						write(Array.get(obj, i));
-						comma = true;
 					}
-					tabs--;
-					writeNewLineTabs();
+					if (comma) {
+						tabs--;
+						writeNewLineTabs();
+					}
 				}
 				buf[pos++] = ']';
 				break;
@@ -386,28 +395,33 @@ public final class JasonWriter {
 						if (s == null)
 							s = "null";
 						ensure(s.length() * 6 + 3); // "xxxxxx":
-						write(s);
+						write(s, noQuote);
 						buf[pos++] = ':';
 						write(e.getValue());
 						comma = true;
 					}
 					ensure(2);
 				} else {
-					tabs++;
 					for (Map.Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
 						if (comma)
 							buf[pos++] = ',';
+						else {
+							tabs++;
+							comma = true;
+						}
+						writeNewLineTabs();
 						s = String.valueOf(e.getKey());
 						if (s == null)
 							s = "null";
 						ensure(s.length() * 6 + 3); // "xxxxxx":
-						write(s);
+						write(s, noQuote);
 						buf[pos++] = ':';
 						write(e.getValue());
-						comma = true;
 					}
-					tabs--;
-					writeNewLineTabs();
+					if (comma) {
+						tabs--;
+						writeNewLineTabs();
+					}
 				}
 				buf[pos++] = '}';
 				break;
@@ -424,13 +438,13 @@ public final class JasonWriter {
 			for (FieldMeta fieldMeta : classMeta.fieldMetas) {
 				int type = fieldMeta.type;
 				byte[] name = fieldMeta.name;
-				ensure(name.length + 4); // ,"xxxxxx":
 				int posBegin = pos;
 				if (comma)
 					buf[pos++] = ',';
 				if ((flags & FLAG_PRETTY_FORMAT) != 0)
 					writeNewLineTabs();
-				write(name);
+				ensure(name.length + 4); // ,"xxxxxx":
+				write(name, noQuote);
 				buf[pos++] = ':';
 				long offset = fieldMeta.offset;
 				switch (type) {
@@ -489,7 +503,7 @@ public final class JasonWriter {
 						break;
 					}
 					ensure(s.length() * 6 + 2); // "xxxxxx"
-					write(s);
+					write(s, false);
 					break;
 				case TYPE_POS:
 					pos = posBegin;
@@ -501,7 +515,7 @@ public final class JasonWriter {
 				comma = true;
 			}
 			tabs--;
-			if ((flags & FLAG_PRETTY_FORMAT) != 0)
+			if ((flags & FLAG_PRETTY_FORMAT) != 0 && comma)
 				writeNewLineTabs();
 			else
 				ensure(2);
@@ -1023,12 +1037,12 @@ public final class JasonWriter {
 		}
 	}
 
-	public void write(final byte[] str) {
-		write(str, 0, str.length);
+	public void write(final byte[] str, final boolean noQuote) {
+		write(str, 0, str.length, noQuote);
 	}
 
-	public void write(final byte[] str, int p, int n) {
-		if ((flags & FLAG_NO_QUOTE_KEY) == 0)
+	public void write(final byte[] str, int p, int n, final boolean noQuote) {
+		if (!noQuote)
 			buf[pos++] = '"';
 		int i = p, q = p + n, c;
 		for (byte b; i < q;) {
@@ -1052,12 +1066,12 @@ public final class JasonWriter {
 			System.arraycopy(str, p, buf, pos, n);
 			pos += n;
 		}
-		if ((flags & FLAG_NO_QUOTE_KEY) == 0)
+		if (!noQuote)
 			buf[pos++] = '"';
 	}
 
-	public void write(final String str) {
-		if ((flags & FLAG_NO_QUOTE_KEY) == 0)
+	public void write(final String str, final boolean noQuote) {
+		if (!noQuote)
 			buf[pos++] = '"';
 		for (int i = 0, n = str.length(); i < n; i++) {
 			final int c = str.charAt(i);
@@ -1084,7 +1098,7 @@ public final class JasonWriter {
 				buf[pos++] = (byte) (0x80 + (c & 0x3f));
 			}
 		}
-		if ((flags & FLAG_NO_QUOTE_KEY) == 0)
+		if (!noQuote)
 			buf[pos++] = '"';
 	}
 }

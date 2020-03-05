@@ -345,7 +345,7 @@ public final class JasonReader {
 		return parse0(obj != null ? obj : (T) allocObj(classMeta), classMeta);
 	}
 
-	<T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) // next() must be '{'
+	public <T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) // next() must be '{'
 			throws ReflectiveOperationException {
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
@@ -683,6 +683,60 @@ public final class JasonReader {
 	@Nullable
 	String parseStringKey(int b) throws ReflectiveOperationException {
 		return b == '"' ? parseString(true) : parseStringNoQuot();
+	}
+
+	public byte[] parseByteString() {
+		final byte[] buffer = buf;
+		int p = pos, b;
+		if (buffer[p] != '"')
+			return null;
+		final int begin = ++p;
+		for (;; p++) {
+			if ((b = buffer[p]) == '"') {
+				pos = p + 1; // lucky! finished the fast path
+				return Arrays.copyOfRange(buffer, begin, p);
+			}
+			if (b == '\\')
+				break; // jump to the slow path below
+		}
+		int len = p - begin, n = len;
+		for (; (b = buffer[p++]) != '"'; len++)
+			if (b == '\\' && buffer[p++] == 'u') {
+				b = (parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8) + (parseHex(buffer[p + 2]) << 4)
+						+ parseHex(buffer[p + 3]);
+				p += 4;
+				if (b >= 0x800)
+					len += 2;
+				else if (b >= 0x80)
+					len++;
+			}
+		byte[] t = new byte[len];
+		p = begin;
+		System.arraycopy(buffer, begin, t, 0, n);
+		for (;;) {
+			if ((b = buffer[p++]) == '"') {
+				pos = p;
+				return t;
+			}
+			if (b == '\\') {
+				if ((b = buffer[p++]) == 'u') {
+					b = (parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8) + (parseHex(buffer[p + 2]) << 4)
+							+ parseHex(buffer[p + 3]);
+					p += 4;
+					if (b >= 0x800) {
+						t[n++] = (byte) (0xe0 + (b >> 12));
+						t[n++] = (byte) (0x80 + ((b >> 6) & 0x3f));
+						t[n++] = (byte) (0x80 + (b & 0x3f));
+					} else if (b >= 0x80) {
+						t[n++] = (byte) (0xc0 + (b >> 6));
+						t[n++] = (byte) (0x80 + (b & 0x3f));
+					} else
+						t[n++] = (byte) b;
+				} else
+					t[n++] = b >= 0x20 ? ESCAPE[b - 0x20] : (byte) (b & 0xff);
+			} else
+				t[n++] = (byte) b;
+		}
 	}
 
 	static int parseHex(int b) {
