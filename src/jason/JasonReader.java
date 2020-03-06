@@ -213,6 +213,11 @@ public final class JasonReader {
 				return b;
 	}
 
+	public int skipColon() {
+		int b = next();
+		return b == ':' ? skipNext() : b;
+	}
+
 	public int skipVar() {
 		for (int b, c;;) {
 			if ((b = buf[pos]) == ',')
@@ -304,9 +309,7 @@ public final class JasonReader {
 			m = new HashMap<>();
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			String k = parseStringKey(b);
-			if ((b = next()) == ':')
-				b = skipNext();
-			m.put(k, parse(null, b));
+			m.put(k, parse(null, skipColon()));
 		}
 		pos++;
 		return m;
@@ -340,19 +343,17 @@ public final class JasonReader {
 		Parser<? super T> parser = classMeta.parser;
 		if (parser != null)
 			return (T) parser.parse0(this, classMeta, obj);
-		if (next() != '{')
-			return obj;
 		return parse0(obj != null ? obj : (T) allocObj(classMeta), classMeta);
 	}
 
-	public <T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) // next() must be '{'
-			throws ReflectiveOperationException {
+	public <T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
+		if (next() != '{')
+			return obj;
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
 			if (fm == null)
 				continue;
-			if ((b = next()) == ':')
-				b = skipNext();
+			b = skipColon();
 			long offset = fm.offset;
 			int type = fm.type;
 			switch (type) {
@@ -537,88 +538,68 @@ public final class JasonReader {
 					case TYPE_BOOLEAN:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
+							b = skipColon();
 							m.put(k, b == 'n' ? null : b == 't');
 						}
 						break;
 					case TYPE_BYTE:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : (byte) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (byte) parseInt());
 						}
 						break;
 					case TYPE_SHORT:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : (short) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (short) parseInt());
 						}
 						break;
 					case TYPE_CHAR:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : (char) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (char) parseInt());
 						}
 						break;
 					case TYPE_INT:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : parseInt());
+							m.put(k, skipColon() == 'n' ? null : parseInt());
 						}
 						break;
 					case TYPE_LONG:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : parseLong());
+							m.put(k, skipColon() == 'n' ? null : parseLong());
 						}
 						break;
 					case TYPE_FLOAT:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : (float) parseDouble());
+							m.put(k, skipColon() == 'n' ? null : (float) parseDouble());
 						}
 						break;
 					case TYPE_DOUBLE:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : parseDouble());
+							m.put(k, skipColon() == 'n' ? null : parseDouble());
 						}
 						break;
 					case TYPE_STRING:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, b == 'n' ? null : parseString(false));
+							m.put(k, skipColon() == 'n' ? null : parseString(false));
 						}
 						break;
 					case TYPE_OBJECT:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if ((b = next()) == ':')
-								b = skipNext();
-							m.put(k, parse(null, b));
+							m.put(k, parse(null, skipColon()));
 						}
 						break;
 					case TYPE_POS:
 						for (; b != '}'; b = skipVar()) {
 							String k = parseStringKey(b);
-							if (next() == ':')
-								skipNext();
+							skipColon();
 							m.put(k, new Pos(pos));
 						}
 						break;
@@ -630,15 +611,13 @@ public final class JasonReader {
 						if (parser != null) {
 							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
-								if (next() == ':')
-									skipNext();
+								skipColon();
 								m.put(k, parser.parse0(this, subClassMeta, null));
 							}
 						} else {
 							for (; b != '}'; b = skipVar()) {
 								String k = parseStringKey(b);
-								if (next() == ':')
-									skipNext();
+								skipColon();
 								m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
 							}
 						}
