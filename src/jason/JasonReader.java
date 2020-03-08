@@ -194,9 +194,12 @@ public final class JasonReader {
 	}
 
 	public boolean end(int len) {
-		for (; pos < len; pos++)
-			if ((buf[pos] & 0xff) > ' ')
-				return false;
+		for (int b; pos < len; pos++)
+			if ((b = buf[pos] & 0xff) > ' ') {
+				if (b != '/') // check comment
+					return false;
+				skipComment();
+			}
 		return true;
 	}
 
@@ -205,13 +208,7 @@ public final class JasonReader {
 			if ((b = buf[pos] & 0xff) > ' ') {
 				if (b != '/') // check comment
 					return b;
-				if ((b = buf[++pos]) == '*') {
-					for (pos++;;)
-						if (buf[pos++] == '*' && buf[pos] == '/')
-							break;
-				} else
-					while (b != '\n')
-						b = buf[++pos];
+				skipComment();
 			}
 		}
 	}
@@ -221,32 +218,35 @@ public final class JasonReader {
 			if ((b = buf[++pos] & 0xff) > ' ') {
 				if (b != '/') // check comment
 					return b;
-				if ((b = buf[++pos]) == '*') {
-					for (pos++;;)
-						if (buf[pos++] == '*' && buf[pos] == '/')
-							break;
-				} else
-					while (b != '\n')
-						b = buf[++pos];
+				skipComment();
 			}
 		}
 	}
 
-	public int skipColon() {
-		int b = next();
-		return b == ':' ? skipNext() : b;
+	private void skipComment() {
+		int b;
+		if ((b = buf[++pos]) == '*') {
+			for (pos++;;)
+				if (buf[pos++] == '*' && buf[pos] == '/')
+					break;
+		} else
+			while (b != '\n')
+				b = buf[++pos];
 	}
 
 	public int skipVar() {
 		for (int b, c;;) {
 			if ((b = buf[pos]) == ',')
 				for (;;)
-					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) // (b & 0xff) > ' ' && b != ','
-						return b;
+					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) { // (b & 0xff) > ' ' && b != ','
+						if (b != '/') // check comment
+							return b;
+						skipComment();
+					}
 			if ((c = b | 0x20) == '}') // ]:0x5D | 0x20 = }:0x7D
 				return b;
 			pos++;
-			if (b < '"')
+			if (b < '"') // fast path
 				continue;
 			if (b == '"') {
 				while ((b = buf[pos++]) != '"')
@@ -261,8 +261,16 @@ public final class JasonReader {
 					} else if (b == '{') // [:0x5B | 0x20 = {:0x7B
 						level++;
 				}
+			} else if (b == '/') {
+				pos--;
+				skipComment();
 			}
 		}
+	}
+
+	public int skipColon() {
+		int b = next();
+		return b == ':' ? skipNext() : b;
 	}
 
 	public @Nullable Object parse() throws ReflectiveOperationException {
