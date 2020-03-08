@@ -194,23 +194,42 @@ public final class JasonReader {
 	}
 
 	public boolean end(int len) {
-		for (; pos < len; pos++) {
+		for (; pos < len; pos++)
 			if ((buf[pos] & 0xff) > ' ')
 				return false;
-		}
 		return true;
 	}
 
 	public int next() {
-		for (int b;; pos++)
-			if ((b = buf[pos] & 0xff) > ' ')
-				return b;
+		for (int b;; pos++) {
+			if ((b = buf[pos] & 0xff) > ' ') {
+				if (b != '/') // check comment
+					return b;
+				if ((b = buf[++pos]) == '*') {
+					for (pos++;;)
+						if (buf[pos++] == '*' && buf[pos] == '/')
+							break;
+				} else
+					while (b != '\n')
+						b = buf[++pos];
+			}
+		}
 	}
 
 	public int skipNext() {
-		for (int b;;)
-			if ((b = buf[++pos] & 0xff) > ' ')
-				return b;
+		for (int b;;) {
+			if ((b = buf[++pos] & 0xff) > ' ') {
+				if (b != '/') // check comment
+					return b;
+				if ((b = buf[++pos]) == '*') {
+					for (pos++;;)
+						if (buf[pos++] == '*' && buf[pos] == '/')
+							break;
+				} else
+					while (b != '\n')
+						b = buf[++pos];
+			}
+		}
 	}
 
 	public int skipColon() {

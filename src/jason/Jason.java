@@ -12,7 +12,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
 import sun.misc.Unsafe; //NOSONAR
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
@@ -36,179 +35,20 @@ public final class Jason {
 	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
 
 	static final class FieldMeta {
-		final int type;
-		final long offset;
+		final int type; // defined above
+		final long offset; // for unsafe access
 		final byte[] name; // field name
-		final @NonNull Class<?> klass; // TYPE_OBJ:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
-		@Nullable
-		ClassMeta<?> classMeta; // from klass, lazy assigned
+		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		final int hash; // for FieldMetaMap
+		transient FieldMeta next; // for FieldMetaMap
+		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 
 		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass) {
 			this.type = type;
 			this.offset = offset;
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.klass = klass;
-		}
-	}
-
-	static final class FieldMetaNode {
-		final int key;
-		FieldMeta fieldMeta;
-		final FieldMetaNode next;
-
-		FieldMetaNode(int key, FieldMeta fieldMeta, FieldMetaNode next) {
-			this.key = key;
-			this.fieldMeta = fieldMeta;
-			this.next = next;
-		}
-	}
-
-	static class FieldMetaMap {
-		private final int hashShift; // [0,1,...30]
-		private final int mask; // [0,0x3fff_ffff]
-		private final int[] keyTable;
-		private final FieldMeta[] valueTable;
-		final FieldMeta[] fieldMetas;
-		private final int pushIterations; // [1,2,4,8,11,16,22,...,4096]
-		private @Nullable FieldMetaNode stashHead;
-
-		FieldMetaMap(int size) {
-			hashShift = 32 - Integer.numberOfLeadingZeros(size * 2 - 1);
-			int capacity = 1 << hashShift;
-			mask = capacity - 1;
-			keyTable = new int[capacity];
-			valueTable = new FieldMeta[capacity];
-			fieldMetas = new FieldMeta[size];
-			pushIterations = Math.max(Math.min(capacity, 8), (int) Math.sqrt(capacity) >> 3);
-		}
-
-		int hash2(int h) {
-			h *= 0xbe1f14b1;
-			return (h ^ (h >> hashShift)) & mask;
-		}
-
-		int hash3(int h) {
-			h *= 0xb4b82e39;
-			return (h ^ (h >> hashShift)) & mask;
-		}
-
-		@Nullable
-		FieldMeta get(int key) {
-			if (key != 0) {
-				int[] kt = keyTable;
-				int idx;
-				if (kt[idx = key & mask] == key || kt[idx = hash2(key)] == key || kt[idx = hash3(key)] == key)
-					return valueTable[idx];
-			}
-			for (FieldMetaNode node = stashHead; node != null; node = node.next)
-				if (node.key == key)
-					return node.fieldMeta;
-			return null;
-		}
-
-		@Nullable
-		FieldMeta put(int key, @Nullable FieldMeta value) {
-			if (key == 0) {
-				for (FieldMetaNode node = stashHead; node != null; node = node.next) {
-					if (node.key == key) {
-						FieldMeta oldValue = node.fieldMeta;
-						node.fieldMeta = value;
-						return oldValue;
-					}
-				}
-				stashHead = new FieldMetaNode(key, value, stashHead);
-				return null;
-			}
-
-			int[] kt = keyTable;
-			FieldMeta[] vt = valueTable;
-			int idx1 = key & mask, key1 = kt[idx1];
-			if (key1 == key) {
-				FieldMeta oldValue = vt[idx1];
-				vt[idx1] = value;
-				return oldValue;
-			}
-			int idx2 = hash2(key), key2 = kt[idx2];
-			if (key2 == key) {
-				FieldMeta oldValue = vt[idx2];
-				vt[idx2] = value;
-				return oldValue;
-			}
-			int idx3 = hash3(key), key3 = kt[idx3];
-			if (key3 == key) {
-				FieldMeta oldValue = vt[idx3];
-				vt[idx3] = value;
-				return oldValue;
-			}
-			for (FieldMetaNode node = stashHead; node != null; node = node.next) {
-				if (node.key == key) {
-					FieldMeta oldValue = node.fieldMeta;
-					node.fieldMeta = value;
-					return oldValue;
-				}
-			}
-
-			if (key1 == 0) {
-				kt[idx1] = key;
-				vt[idx1] = value;
-				return null;
-			}
-			if (key2 == 0) {
-				kt[idx2] = key;
-				vt[idx2] = value;
-				return null;
-			}
-			if (key3 == 0) {
-				kt[idx3] = key;
-				vt[idx3] = value;
-				return null;
-			}
-
-			int m = mask, evictedKey;
-			FieldMeta evictedValue;
-			ThreadLocalRandom rand = ThreadLocalRandom.current();
-			for (int pis = pushIterations;; key = evictedKey, value = evictedValue) {
-				switch (rand.nextInt(3)) {
-				case 0:
-					evictedKey = key1;
-					evictedValue = vt[idx1];
-					kt[idx1] = key;
-					vt[idx1] = value;
-					break;
-				case 1:
-					evictedKey = key2;
-					evictedValue = vt[idx2];
-					kt[idx2] = key;
-					vt[idx2] = value;
-					break;
-				default:
-					evictedKey = key3;
-					evictedValue = vt[idx3];
-					kt[idx3] = key;
-					vt[idx3] = value;
-					break;
-				}
-
-				if ((key1 = kt[idx1 = evictedKey & m]) == 0) {
-					kt[idx1] = evictedKey;
-					vt[idx1] = evictedValue;
-					return null;
-				}
-				if ((key2 = kt[idx2 = hash2(evictedKey)]) == 0) {
-					kt[idx2] = evictedKey;
-					vt[idx2] = evictedValue;
-					return null;
-				}
-				if ((key3 = kt[idx3 = hash3(evictedKey)]) == 0) {
-					kt[idx3] = evictedKey;
-					vt[idx3] = evictedValue;
-					return null;
-				}
-				if (--pis <= 0) {
-					stashHead = new FieldMetaNode(evictedKey, evictedValue, stashHead);
-					return null;
-				}
-			}
+			this.hash = getKeyHash(this.name, 0, name.length());
 		}
 	}
 
@@ -244,14 +84,14 @@ public final class Jason {
 		}
 	}
 
-	public static final class ClassMeta<T> extends FieldMetaMap {
+	public static final class ClassMeta<T> {
 		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
+		private final FieldMeta[] valueTable;
+		final FieldMeta[] fieldMetas;
 		final @NonNull Class<T> klass;
 		final @Nullable Constructor<T> ctor;
-		@Nullable
-		Parser<T> parser; // user custom parser
-		@Nullable
-		Writer<T> writer; // user custom writer
+		transient @Nullable Parser<T> parser; // user custom parser
+		transient @Nullable Writer<T> writer; // user custom writer
 
 		static {
 			typeMap.put(boolean.class, TYPE_BOOLEAN);
@@ -275,17 +115,14 @@ public final class Jason {
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
 		}
 
-		private static int getFieldCount(Class<?> klass) {
-			int n = 0;
+		ClassMeta(final @NonNull Class<T> klass) {
+			int size = 0;
 			for (Class<?> c = klass; c != Object.class; c = c.getSuperclass())
 				for (Field field : c.getDeclaredFields())
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)
-						n++;
-			return n;
-		}
-
-		ClassMeta(final @NonNull Class<T> klass) {
-			super(getFieldCount(klass));
+						size++;
+			valueTable = new FieldMeta[1 << (32 - Integer.numberOfLeadingZeros(size * 2 - 1))];
+			fieldMetas = new FieldMeta[size];
 			this.klass = klass;
 			Constructor<T> ct = null;
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
@@ -340,12 +177,7 @@ public final class Jason {
 					} else
 						type = TYPE_CUSTOM;
 					String name = ensureNonNull(field.getName());
-					FieldMeta fieldMeta = new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass);
-					FieldMeta oldMeta = put(getKeyHash(fieldMeta.name, 0, fieldMeta.name.length), fieldMeta);
-					if (oldMeta != null) // bad luck! try to call setKeyHashMultiplier with another prime number
-						throw new IllegalStateException("conflicted field names: " + name + " & "
-								+ new String(oldMeta.name, StandardCharsets.UTF_8) + " in class: " + klass.getName());
-					fieldMetas[j++] = fieldMeta;
+					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass));
 				}
 			}
 		}
@@ -375,6 +207,35 @@ public final class Jason {
 
 		public void setWriter(@Nullable Writer<T> w) {
 			writer = w;
+		}
+
+		@Nullable
+		FieldMeta get(int hash) {
+			for (FieldMeta fm = valueTable[hash & (valueTable.length - 1)]; fm != null; fm = fm.next)
+				if (fm.hash == hash)
+					return fm;
+			return null;
+		}
+
+		void put(int idx, @NonNull FieldMeta fieldMeta) {
+			fieldMeta.next = null;
+			fieldMetas[idx] = fieldMeta;
+			int hash = fieldMeta.hash;
+			int i = hash & (valueTable.length - 1);
+			FieldMeta fm = valueTable[i];
+			if (fm == null) { // fast path
+				valueTable[i] = fieldMeta;
+				return;
+			}
+			for (;; fm = fm.next) {
+				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
+					throw new IllegalStateException("conflicted field names: " + fieldMeta.name + " & "
+							+ new String(fm.name, StandardCharsets.UTF_8) + " in class: " + fieldMeta.klass.getName());
+				if (fm.next == null) {
+					fm.next = fieldMeta;
+					return;
+				}
+			}
 		}
 	}
 
