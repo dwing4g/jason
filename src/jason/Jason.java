@@ -31,8 +31,8 @@ public final class Jason {
 	static final int TYPE_POS = 11; // Pos(pos)
 	static final int TYPE_CUSTOM = 12; // user custom type
 	static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
-	static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12>
-	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12>
+	static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12> (parser only needs clear() & add(v))
+	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12> (parser only needs clear() & put(k,v))
 
 	static final class FieldMeta {
 		final int type; // defined above
@@ -151,7 +151,7 @@ public final class Jason {
 					int type;
 					if (v != null)
 						type = v;
-					else if (Collection.class.isAssignableFrom(fieldClass)) {
+					else if (Collection.class.isAssignableFrom(fieldClass)) { // Collection<?>
 						Type geneType = field.getGenericType();
 						if (geneType instanceof ParameterizedType) {
 							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
@@ -162,7 +162,7 @@ public final class Jason {
 								continue;
 						} else
 							continue;
-					} else if (Map.class.isAssignableFrom(fieldClass)) {
+					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<String, ?>
 						Type geneType = field.getGenericType();
 						if (geneType instanceof ParameterizedType) {
 							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();

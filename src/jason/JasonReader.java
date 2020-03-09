@@ -341,7 +341,7 @@ public final class JasonReader {
 	}
 
 	@NonNull
-	Map<String, Object> parseMap0(Map<String, Object> m) throws ReflectiveOperationException {
+	Map<String, Object> parseMap0(@Nullable Map<String, Object> m) throws ReflectiveOperationException {
 		if (m == null)
 			m = new HashMap<>();
 		for (int b = skipNext(); b != '}'; b = skipVar()) {

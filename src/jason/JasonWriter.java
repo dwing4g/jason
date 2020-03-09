@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Map.Entry;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import jason.Jason.ClassMeta;
@@ -388,12 +389,10 @@ public final class JasonWriter {
 				ensure(1);
 				buf[pos++] = '{';
 				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
-					for (Map.Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
 						if (comma)
 							buf[pos++] = ',';
 						s = String.valueOf(e.getKey());
-						if (s == null)
-							s = "null";
 						ensure(s.length() * 6 + 3); // "xxxxxx":
 						write(s, noQuote);
 						buf[pos++] = ':';
@@ -402,7 +401,7 @@ public final class JasonWriter {
 					}
 					ensure(2);
 				} else {
-					for (Map.Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
 						if (comma)
 							buf[pos++] = ',';
 						else {
@@ -411,8 +410,6 @@ public final class JasonWriter {
 						}
 						writeNewLineTabs();
 						s = String.valueOf(e.getKey());
-						if (s == null)
-							s = "null";
 						ensure(s.length() * 6 + 3); // "xxxxxx":
 						write(s, noQuote);
 						buf[pos++] = ':';
