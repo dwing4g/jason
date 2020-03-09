@@ -198,7 +198,13 @@ public final class JasonReader {
 			if ((b = buf[pos] & 0xff) > ' ') {
 				if (b != '/') // check comment
 					return false;
-				skipComment();
+				if ((b = buf[++pos]) == '*') {
+					for (pos++;;)
+						if (buf[pos++] == '*' && buf[pos] == '/')
+							break;
+				} else
+					while (b != '\n' && ++pos < len)
+						b = buf[pos];
 			}
 		return true;
 	}
@@ -221,17 +227,6 @@ public final class JasonReader {
 				skipComment();
 			}
 		}
-	}
-
-	private void skipComment() {
-		int b;
-		if ((b = buf[++pos]) == '*') {
-			for (pos++;;)
-				if (buf[pos++] == '*' && buf[pos] == '/')
-					break;
-		} else
-			while (b != '\n')
-				b = buf[++pos];
 	}
 
 	public int skipVar() {
@@ -260,12 +255,27 @@ public final class JasonReader {
 								pos++;
 					} else if (b == '{') // [:0x5B | 0x20 = {:0x7B
 						level++;
+					else if (b == '/') { // skip comment
+						pos--;
+						skipComment();
+					}
 				}
-			} else if (b == '/') {
+			} else if (b == '/') { // skip comment
 				pos--;
 				skipComment();
 			}
 		}
+	}
+
+	private void skipComment() {
+		int b;
+		if ((b = buf[++pos]) == '*') {
+			for (pos++;;)
+				if (buf[pos++] == '*' && buf[pos] == '/')
+					break;
+		} else
+			while (b != '\n')
+				b = buf[++pos];
 	}
 
 	public int skipColon() {
@@ -680,6 +690,8 @@ public final class JasonReader {
 			b = buf[++pos];
 		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
+				return h;
+			if (b == '/') // check comment
 				return h;
 			if (b == '\\')
 				b = buf[++pos];
