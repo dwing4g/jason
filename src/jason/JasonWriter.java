@@ -349,46 +349,26 @@ public final class JasonWriter {
 			if (obj instanceof Collection) {
 				ensure(1);
 				buf[pos++] = '[';
-				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
-					for (Object o : (Collection<?>) obj) {
-						if (comma)
-							buf[pos++] = ',';
-						write(o);
-						comma = true;
-					}
-					ensure(2);
-				} else {
-					for (Object o : (Collection<?>) obj) {
-						if (comma)
-							buf[pos++] = ',';
-						else
-							comma = true;
-						write(o);
-					}
+				for (Object o : (Collection<?>) obj) {
+					if (comma)
+						buf[pos++] = ',';
+					write(o);
+					comma = true;
 				}
+				ensure(2);
 				buf[pos++] = ']';
 				break;
 			}
 			if (klass.isArray()) {
 				ensure(1);
 				buf[pos++] = '[';
-				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
-					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
-						if (comma)
-							buf[pos++] = ',';
-						write(Array.get(obj, i));
-						comma = true;
-					}
-					ensure(2);
-				} else {
-					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
-						if (comma)
-							buf[pos++] = ',';
-						else
-							comma = true;
-						write(Array.get(obj, i));
-					}
+				for (int i = 0, n = Array.getLength(obj); i < n; i++) {
+					if (comma)
+						buf[pos++] = ',';
+					write(Array.get(obj, i));
+					comma = true;
 				}
+				ensure(2);
 				buf[pos++] = ']';
 				break;
 			}
@@ -417,9 +397,10 @@ public final class JasonWriter {
 						}
 						writeNewLineTabs();
 						s = String.valueOf(e.getKey());
-						ensure(s.length() * 6 + 3); // "xxxxxx":
+						ensure(s.length() * 6 + 4); // "xxxxxx":_
 						write(s, noQuote);
 						buf[pos++] = ':';
+						buf[pos++] = ' ';
 						write(e.getValue());
 					}
 					if (comma) {
@@ -440,27 +421,34 @@ public final class JasonWriter {
 			buf[pos++] = '{';
 			tabs++;
 			for (FieldMeta fieldMeta : classMeta.fieldMetas) {
-				int type = fieldMeta.type;
 				byte[] name = fieldMeta.name;
 				int posBegin = pos;
-				if (comma)
-					buf[pos++] = ',';
-				if ((flags & FLAG_PRETTY_FORMAT) != 0)
+				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
+					if (comma)
+						buf[pos++] = ',';
+					ensure(name.length + 3); // "xxxxxx":
+					write(name, noQuote);
+					buf[pos++] = ':';
+				} else {
+					if (comma)
+						buf[pos++] = ',';
 					writeNewLineTabs();
-				ensure(name.length + 4); // ,"xxxxxx":
-				write(name, noQuote);
-				buf[pos++] = ':';
+					ensure(name.length + 4); // "xxxxxx":_
+					write(name, noQuote);
+					buf[pos++] = ':';
+					buf[pos++] = ' ';
+				}
 				long offset = fieldMeta.offset;
-				switch (type) {
+				switch (fieldMeta.type) {
 				case TYPE_BOOLEAN:
 					if (unsafe.getBoolean(obj, offset)) {
-						ensure(4);
+						ensure(5);
 						buf[pos++] = 't';
 						buf[pos++] = 'r';
 						buf[pos++] = 'u';
 						buf[pos++] = 'e';
 					} else {
-						ensure(5);
+						ensure(6);
 						buf[pos++] = 'f';
 						buf[pos++] = 'a';
 						buf[pos++] = 'l';
@@ -469,44 +457,44 @@ public final class JasonWriter {
 					}
 					break;
 				case TYPE_BYTE:
-					ensure(4);
+					ensure(5);
 					write(unsafe.getByte(obj, offset));
 					break;
 				case TYPE_SHORT:
-					ensure(6);
+					ensure(7);
 					write(unsafe.getShort(obj, offset));
 					break;
 				case TYPE_CHAR:
-					ensure(6);
+					ensure(7);
 					write(unsafe.getChar(obj, offset));
 					break;
 				case TYPE_INT:
-					ensure(11);
+					ensure(12);
 					write(unsafe.getInt(obj, offset));
 					break;
 				case TYPE_LONG:
-					ensure(20);
+					ensure(21);
 					write(unsafe.getLong(obj, offset));
 					break;
 				case TYPE_FLOAT:
-					ensure(25);
+					ensure(26);
 					write(unsafe.getFloat(obj, offset));
 					break;
 				case TYPE_DOUBLE:
-					ensure(25);
+					ensure(26);
 					write(unsafe.getDouble(obj, offset));
 					break;
 				case TYPE_STRING:
 					s = (String) unsafe.getObject(obj, offset);
 					if (s == null) {
-						ensure(4);
+						ensure(5);
 						buf[pos++] = 'n';
 						buf[pos++] = 'u';
 						buf[pos++] = 'l';
 						buf[pos++] = 'l';
 						break;
 					}
-					ensure(s.length() * 6 + 2); // "xxxxxx"
+					ensure(s.length() * 6 + 3); // "xxxxxx",
 					write(s, false);
 					break;
 				case TYPE_POS:

@@ -148,7 +148,7 @@ public final class Jason {
 						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
 					Integer v = typeMap.get(fieldClass);
-					int type;
+					int type = 0;
 					if (v != null)
 						type = v;
 					else if (Collection.class.isAssignableFrom(fieldClass)) { // Collection<?>
@@ -158,10 +158,8 @@ public final class Jason {
 							if (geneTypes.length == 1 && (geneType = geneTypes[0]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
 								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
-							} else
-								continue;
-						} else
-							continue;
+							}
+						}
 					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<String, ?>
 						Type geneType = field.getGenericType();
 						if (geneType instanceof ParameterizedType) {
@@ -170,10 +168,8 @@ public final class Jason {
 									&& (geneType = geneTypes[1]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
 								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
-							} else
-								continue;
-						} else
-							continue;
+							}
+						}
 					} else
 						type = TYPE_CUSTOM;
 					String name = ensureNonNull(field.getName());
