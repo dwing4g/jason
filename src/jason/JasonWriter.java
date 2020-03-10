@@ -153,12 +153,20 @@ public final class JasonWriter {
 		return this;
 	}
 
+	public boolean isPrettyFormat() {
+		return (flags & FLAG_PRETTY_FORMAT) != 0;
+	}
+
 	public JasonWriter setPrettyFormat(boolean enable) {
 		if (enable)
 			flags |= FLAG_PRETTY_FORMAT;
 		else
 			flags &= ~FLAG_PRETTY_FORMAT;
 		return this;
+	}
+
+	public boolean isNoQuoteKey() {
+		return (flags & FLAG_NO_QUOTE_KEY) != 0;
 	}
 
 	public JasonWriter setNoQuoteKey(boolean enable) {
@@ -250,7 +258,20 @@ public final class JasonWriter {
 			appendBlock(len);
 	}
 
-	void writeNewLineTabs() {
+	public void writeByte(byte b) {
+		ensure(1);
+		buf[pos++] = b;
+	}
+
+	public void incTab() {
+		tabs++;
+	}
+
+	public void decTab() {
+		tabs--;
+	}
+
+	public void writeNewLineTabs() {
 		ensure(3 + tabs);
 		buf[pos++] = '\n';
 		for (int i = 0, n = tabs; i < n; i++)
@@ -340,16 +361,9 @@ public final class JasonWriter {
 					for (Object o : (Collection<?>) obj) {
 						if (comma)
 							buf[pos++] = ',';
-						else {
-							tabs++;
+						else
 							comma = true;
-						}
-						writeNewLineTabs();
 						write(o);
-					}
-					if (comma) {
-						tabs--;
-						writeNewLineTabs();
 					}
 				}
 				buf[pos++] = ']';
@@ -370,16 +384,9 @@ public final class JasonWriter {
 					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
 						if (comma)
 							buf[pos++] = ',';
-						else {
-							tabs++;
+						else
 							comma = true;
-						}
-						writeNewLineTabs();
 						write(Array.get(obj, i));
-					}
-					if (comma) {
-						tabs--;
-						writeNewLineTabs();
 					}
 				}
 				buf[pos++] = ']';
