@@ -268,6 +268,10 @@ public final class Jason {
 		return (ClassMeta<T>) classMetas.computeIfAbsent(klass, ClassMeta::new);
 	}
 
+	public static void clearClassMetas() {
+		classMetas.clear();
+	}
+
 //	public static void setKeyHashMultiplier(int multiplier) { // must be set before any other access
 //		keyHashMultiplier = multiplier;
 //	}
