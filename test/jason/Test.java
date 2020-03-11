@@ -1,5 +1,7 @@
 package jason;
 
+import java.net.Inet4Address;
+
 public final class Test {
 	static class A {
 		int a;
@@ -68,11 +70,17 @@ public final class Test {
 		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_NO_QUOTE_KEY).write(c).toString());
 	}
 
+	public static void test6() {
+		System.out.println(System.getProperty("java.version"));
+		System.out.println(Jason.getClassMeta(Inet4Address.class));
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
 		test3();
 		test4();
 		test5();
+		test6();
 	}
 }

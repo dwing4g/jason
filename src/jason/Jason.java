@@ -1,7 +1,11 @@
 package jason;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -118,7 +122,7 @@ public final class Jason {
 		ClassMeta(final @NonNull Class<T> klass) {
 			int size = 0;
 			for (Class<?> c = klass; c != Object.class; c = c.getSuperclass())
-				for (Field field : c.getDeclaredFields())
+				for (Field field : getDeclaredFields(c))
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)
 						size++;
 			valueTable = new FieldMeta[1 << (32 - Integer.numberOfLeadingZeros(size * 2 - 1))];
@@ -128,7 +132,7 @@ public final class Jason {
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
 				if (c.getParameterCount() == 0) {
 					try {
-						c.setAccessible(true);
+						setAccessible(c);
 						@SuppressWarnings("unchecked")
 						Constructor<T> ct0 = (Constructor<T>) c;
 						ct = ct0;
@@ -143,7 +147,7 @@ public final class Jason {
 				classes.add(c);
 			for (int i = classes.size() - 1, j = 0; i >= 0; i--) {
 				Class<? super T> c = classes.get(i);
-				for (Field field : c.getDeclaredFields()) {
+				for (Field field : getDeclaredFields(c)) {
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
 						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
@@ -236,8 +240,10 @@ public final class Jason {
 	}
 
 	static final @NonNull Unsafe unsafe;
-	static final boolean BYTE_STRING;
+	static final @NonNull MethodHandle getDeclaredFields0MH;
+	static final long OVERRIDE_OFFSET;
 	static final long STRING_VALUE_OFFSET;
+	static final boolean BYTE_STRING;
 	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	static final int keyHashMultiplier = 0x100_0193; //NOSONAR 1677_7619 can be changed to another prime number
 
@@ -246,12 +252,38 @@ public final class Jason {
 			Field theUnsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 			theUnsafeField.setAccessible(true);
 			unsafe = ensureNonNull((Unsafe) theUnsafeField.get(null));
-			Field valueField = String.class.getDeclaredField("value");
-			BYTE_STRING = valueField.getType() == byte[].class;
+			// suppress "An illegal reflective access operation has occurred" in JDK9+
+			if (!System.getProperty("java.version").startsWith("1.") && !Jason.class.getModule().isNamed())
+				Class.class.getModule().addOpens(Class.class.getPackageName(), Jason.class.getModule());
+			Method getDeclaredFields0Method = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+			getDeclaredFields0Method.setAccessible(true);
+			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(getDeclaredFields0Method));
+			OVERRIDE_OFFSET = unsafe.objectFieldOffset(getDeclaredField(AccessibleObject.class, "override"));
+			Field valueField = getDeclaredField(String.class, "value");
 			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(valueField);
+			BYTE_STRING = valueField.getType() == byte[].class;
 		} catch (ReflectiveOperationException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	static Field[] getDeclaredFields(Class<?> klass) {
+		try {
+			return (Field[]) getDeclaredFields0MH.invokeExact(klass, false);
+		} catch (Throwable e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	static Field getDeclaredField(Class<?> klass, String fieldName) {
+		for (Field field : getDeclaredFields(klass))
+			if (field.getName().equals(fieldName))
+				return field;
+		return null;
+	}
+
+	static void setAccessible(AccessibleObject ao) {
+		unsafe.putBoolean(ao, OVERRIDE_OFFSET, true);
 	}
 
 	@SuppressWarnings("null")
