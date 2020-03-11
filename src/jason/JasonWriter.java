@@ -25,6 +25,7 @@ public final class JasonWriter {
 
 	public static final int FLAG_PRETTY_FORMAT = 0x1;
 	public static final int FLAG_NO_QUOTE_KEY  = 0x2;
+	public static final int FLAG_WRITE_NULL    = 0x4;
 	//@formatter:on
 
 	private static final byte[] DIGITES_LUT = { // [200]
@@ -174,6 +175,18 @@ public final class JasonWriter {
 			flags |= FLAG_NO_QUOTE_KEY;
 		else
 			flags &= ~FLAG_NO_QUOTE_KEY;
+		return this;
+	}
+
+	public boolean isWriteNull() {
+		return (flags & FLAG_WRITE_NULL) != 0;
+	}
+
+	public JasonWriter setWriteNull(boolean enable) {
+		if (enable)
+			flags |= FLAG_WRITE_NULL;
+		else
+			flags &= ~FLAG_WRITE_NULL;
 		return this;
 	}
 
@@ -377,6 +390,8 @@ public final class JasonWriter {
 				buf[pos++] = '{';
 				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
 					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
+							continue;
 						if (comma)
 							buf[pos++] = ',';
 						s = String.valueOf(e.getKey());
@@ -389,6 +404,8 @@ public final class JasonWriter {
 					ensure(2);
 				} else {
 					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
+							continue;
 						if (comma)
 							buf[pos++] = ',';
 						else {
@@ -420,10 +437,17 @@ public final class JasonWriter {
 			ensure(1);
 			buf[pos++] = '{';
 			tabs++;
+			boolean prettyFormat = (flags & FLAG_PRETTY_FORMAT) != 0;
+			boolean writeNull = (flags & FLAG_WRITE_NULL) != 0;
 			for (FieldMeta fieldMeta : classMeta.fieldMetas) {
+				Object subObj = null;
+				int type = fieldMeta.type;
+				long offset = fieldMeta.offset;
+				if (type > TYPE_DOUBLE && (subObj = unsafe.getObject(obj, offset)) == null && !writeNull)
+					continue;
 				byte[] name = fieldMeta.name;
 				int posBegin = pos;
-				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
+				if (!prettyFormat) {
 					if (comma)
 						buf[pos++] = ',';
 					ensure(name.length + 3); // "xxxxxx":
@@ -438,8 +462,7 @@ public final class JasonWriter {
 					buf[pos++] = ':';
 					buf[pos++] = ' ';
 				}
-				long offset = fieldMeta.offset;
-				switch (fieldMeta.type) {
+				switch (type) {
 				case TYPE_BOOLEAN:
 					if (unsafe.getBoolean(obj, offset)) {
 						ensure(5);
@@ -485,8 +508,7 @@ public final class JasonWriter {
 					write(unsafe.getDouble(obj, offset));
 					break;
 				case TYPE_STRING:
-					s = (String) unsafe.getObject(obj, offset);
-					if (s == null) {
+					if (subObj == null) {
 						ensure(5);
 						buf[pos++] = 'n';
 						buf[pos++] = 'u';
@@ -494,6 +516,7 @@ public final class JasonWriter {
 						buf[pos++] = 'l';
 						break;
 					}
+					s = (String) subObj;
 					ensure(s.length() * 6 + 3); // "xxxxxx",
 					write(s, false);
 					break;
@@ -501,7 +524,7 @@ public final class JasonWriter {
 					pos = posBegin;
 					continue;
 				default:
-					write(unsafe.getObject(obj, offset));
+					write(subObj);
 					break;
 				}
 				comma = true;

@@ -13,6 +13,7 @@ public final class Test {
 
 	static class C {
 		A a = new B();
+		C c;
 	}
 
 	public static void test1() throws ReflectiveOperationException {
@@ -71,6 +72,13 @@ public final class Test {
 	}
 
 	public static void test6() {
+		C c = new C();
+		c.a.a = 1;
+		((B) c.a).b = -1;
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_WRITE_NULL).write(c).toString());
+	}
+
+	public static void test7() {
 		System.out.println(System.getProperty("java.version"));
 		System.out.println(Jason.getClassMeta(Inet4Address.class));
 	}
@@ -82,5 +90,6 @@ public final class Test {
 		test4();
 		test5();
 		test6();
+		test7();
 	}
 }
