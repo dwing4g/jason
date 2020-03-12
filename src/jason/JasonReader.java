@@ -184,8 +184,9 @@ public final class JasonReader {
 	}
 
 	public @NonNull JasonReader trySkipBom() {
-		if (pos <= buf.length - 3 && buf[pos] == 0xef && buf[pos + 1] == 0xbb && buf[pos + 2] == 0xbf)
-			pos += 3;
+		int p = pos;
+		if (p + 2 < buf.length && buf[p] == (byte) 0xef && buf[p + 1] == (byte) 0xbb && buf[p + 2] == (byte) 0xbf)
+			pos = p + 3;
 		return this;
 	}
 

@@ -229,7 +229,8 @@ public final class Jason {
 			}
 			for (;; fm = fm.next) {
 				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
-					throw new IllegalStateException("conflicted field names: " + fieldMeta.name + " & "
+					throw new IllegalStateException("conflicted field names: "
+							+ new String(fieldMeta.name, StandardCharsets.UTF_8) + " & "
 							+ new String(fm.name, StandardCharsets.UTF_8) + " in class: " + fieldMeta.klass.getName());
 				if (fm.next == null) {
 					fm.next = fieldMeta;
