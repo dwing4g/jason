@@ -1,6 +1,7 @@
 package jason;
 
 import java.lang.reflect.Constructor;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -135,6 +136,12 @@ public final class JasonReader {
 
 	public byte[] buf() {
 		return buf;
+	}
+
+	public @NonNull JasonReader buf(String s) {
+		buf = s.getBytes(StandardCharsets.UTF_8);
+		pos = 0;
+		return this;
 	}
 
 	public @NonNull JasonReader buf(byte[] b) {
@@ -284,6 +291,12 @@ public final class JasonReader {
 		return b == ':' ? skipNext() : b;
 	}
 
+	public void skipQuot() {
+		for (byte b; (b = buf[pos++]) != '"';)
+			if (b == '\\')
+				pos++;
+	}
+
 	public @Nullable Object parse() throws ReflectiveOperationException {
 		return parse(null, next());
 	}
@@ -346,7 +359,7 @@ public final class JasonReader {
 		if (m == null)
 			m = new HashMap<>();
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
-			String k = parseStringKey(b);
+			String k = parseStringKey(this, b);
 			m.put(k, parse(null, skipColon()));
 		}
 		pos++;
@@ -566,77 +579,78 @@ public final class JasonReader {
 						break;
 					}
 					@SuppressWarnings("unchecked")
-					Map<String, Object> m = (Map<String, Object>) unsafe.getObject(obj, offset);
+					Map<Object, Object> m = (Map<Object, Object>) unsafe.getObject(obj, offset);
 					if (m == null)
 						unsafe.putObject(obj, offset, m = new HashMap<>());
 					else
 						m.clear();
 					b = skipNext();
+					KeyReader keyParser = ensureNonNull(fm.keyParser);
 					switch (type & 0xf) {
 					case TYPE_BOOLEAN:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							b = skipColon();
 							m.put(k, b == 'n' ? null : b == 't');
 						}
 						break;
 					case TYPE_BYTE:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (byte) parseInt());
 						}
 						break;
 					case TYPE_SHORT:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (short) parseInt());
 						}
 						break;
 					case TYPE_CHAR:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (char) parseInt());
 						}
 						break;
 					case TYPE_INT:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseInt());
 						}
 						break;
 					case TYPE_LONG:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseLong());
 						}
 						break;
 					case TYPE_FLOAT:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (float) parseDouble());
 						}
 						break;
 					case TYPE_DOUBLE:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseDouble());
 						}
 						break;
 					case TYPE_STRING:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseString(false));
 						}
 						break;
 					case TYPE_OBJECT:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							m.put(k, parse(null, skipColon()));
 						}
 						break;
 					case TYPE_POS:
 						for (; b != '}'; b = skipVar()) {
-							String k = parseStringKey(b);
+							Object k = keyParser.parse(this, b);
 							skipColon();
 							m.put(k, new Pos(pos));
 						}
@@ -648,13 +662,13 @@ public final class JasonReader {
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
 							for (; b != '}'; b = skipVar()) {
-								String k = parseStringKey(b);
+								Object k = keyParser.parse(this, b);
 								skipColon();
 								m.put(k, parser.parse0(this, subClassMeta, null));
 							}
 						} else {
 							for (; b != '}'; b = skipVar()) {
-								String k = parseStringKey(b);
+								Object k = keyParser.parse(this, b);
 								skipColon();
 								m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
 							}
@@ -700,8 +714,103 @@ public final class JasonReader {
 	}
 
 	@Nullable
-	String parseStringKey(int b) throws ReflectiveOperationException {
-		return b == '"' ? parseString(true) : parseStringNoQuot();
+	static String parseStringKey(@NonNull JasonReader jr, int b) throws ReflectiveOperationException {
+		return b == '"' ? jr.parseString(true) : jr.parseStringNoQuot();
+	}
+
+	@Nullable
+	static Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {
+		Boolean v;
+		if (b == '"') {
+			v = jr.buf[++jr.pos] == 't';
+			jr.skipQuot();
+		} else
+			v = jr.buf[++jr.pos] == 't';
+		return v;
+	}
+
+	@Nullable
+	static Byte parseByteKey(@NonNull JasonReader jr, int b) {
+		int v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseInt();
+			jr.skipQuot();
+		} else
+			v = jr.parseInt();
+		return Byte.valueOf((byte) v);
+	}
+
+	@Nullable
+	static Short parseShortKey(@NonNull JasonReader jr, int b) {
+		int v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseInt();
+			jr.skipQuot();
+		} else
+			v = jr.parseInt();
+		return Short.valueOf((short) v);
+	}
+
+	@Nullable
+	static Character parseCharKey(@NonNull JasonReader jr, int b) {
+		int v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseInt();
+			jr.skipQuot();
+		} else
+			v = jr.parseInt();
+		return Character.valueOf((char) v);
+	}
+
+	@Nullable
+	static Integer parseIntegerKey(@NonNull JasonReader jr, int b) {
+		int v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseInt();
+			jr.skipQuot();
+		} else
+			v = jr.parseInt();
+		return Integer.valueOf(v);
+	}
+
+	@Nullable
+	static Long parseLongKey(@NonNull JasonReader jr, int b) {
+		long v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseLong();
+			jr.skipQuot();
+		} else
+			v = jr.parseLong();
+		return Long.valueOf(v);
+	}
+
+	@Nullable
+	static Float parseFloatKey(@NonNull JasonReader jr, int b) {
+		double v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseDouble();
+			jr.skipQuot();
+		} else
+			v = jr.parseDouble();
+		return Float.valueOf((float) v);
+	}
+
+	@Nullable
+	static Double parseDoubleKey(@NonNull JasonReader jr, int b) {
+		double v;
+		if (b == '"') {
+			jr.pos++;
+			v = jr.parseDouble();
+			jr.skipQuot();
+		} else
+			v = jr.parseDouble();
+		return Double.valueOf(v);
 	}
 
 	public byte[] parseByteString() {
@@ -897,7 +1006,8 @@ public final class JasonReader {
 					i = i * 10 + c;
 					n++;
 				}
-			}
+			} else
+				i = 0;
 
 			if (b == '.') {
 				b = buffer[++p];
@@ -994,7 +1104,8 @@ public final class JasonReader {
 					i = i * 10 + c;
 					n++;
 				}
-			}
+			} else
+				i = 0;
 
 			if (b == '.') {
 				b = buffer[++p];
@@ -1091,7 +1202,8 @@ public final class JasonReader {
 					i = i * 10 + c;
 					n++;
 				}
-			}
+			} else
+				i = 0;
 
 			if (b == '.') {
 				b = buffer[++p];
@@ -1189,7 +1301,8 @@ public final class JasonReader {
 					i = i * 10 + c;
 					n++;
 				}
-			}
+			} else
+				i = 0;
 
 			if (b == '.') {
 				b = buffer[++p];

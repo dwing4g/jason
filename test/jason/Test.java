@@ -1,6 +1,7 @@
 package jason;
 
 import java.net.Inet4Address;
+import java.util.HashMap;
 
 public final class Test {
 	static class A {
@@ -25,26 +26,26 @@ public final class Test {
 	}
 
 	public static void test2() throws ReflectiveOperationException {
-		C c = JasonReader.local().buf("{a:{a:1,b:2}}".getBytes()).parse(C.class);
+		C c = JasonReader.local().buf("{a:{a:1,b:2}}").parse(C.class);
 		if (c == null)
 			throw new RuntimeException();
 		System.out.println(c.a.getClass() == B.class && c.a.a == 1 && ((B) c.a).b == 2);
 
 		c.a = new A();
-		c = JasonReader.local().buf("{a:{a:3,b:4}}".getBytes()).parse(c);
+		c = JasonReader.local().buf("{a:{a:3,b:4}}").parse(c);
 		if (c == null)
 			throw new RuntimeException();
 		System.out.println(c.a.getClass() == A.class && c.a.a == 3);
 
 		c.a = null;
-		c = JasonReader.local().buf("{a:{a:5,b:6}}".getBytes()).parse(c);
+		c = JasonReader.local().buf("{a:{a:5,b:6}}").parse(c);
 		if (c == null)
 			throw new RuntimeException();
 		System.out.println(c.a.getClass() == A.class && c.a.a == 5);
 
 		Jason.getClassMeta(A.class).setParser((jason, __, ___) -> jason.parse(B.class));
 		c.a = null;
-		c = JasonReader.local().buf("{a:{a:7,b:8}}".getBytes()).parse(c);
+		c = JasonReader.local().buf("{a:{a:7,b:8}}").parse(c);
 		if (c == null)
 			throw new RuntimeException();
 		System.out.println(c.a.getClass() == B.class && c.a.a == 7 && ((B) c.a).b == 8);
@@ -83,6 +84,22 @@ public final class Test {
 		System.out.println(Jason.getClassMeta(Inet4Address.class));
 	}
 
+	static class D {
+		HashMap<Integer, Integer> m = new HashMap<>();
+	}
+
+	public static void test8() throws ReflectiveOperationException {
+		D d = new D();
+		d.m.put(123, 456);
+		String s = JasonWriter.local().clear().setFlags(0).write(d).toString();
+		System.out.println(s);
+		d.m.clear();
+		JasonReader.local().buf("{\"m\":{123:456}}").parse(d);
+		System.out.println(d.m);
+		if (d.m.entrySet().iterator().next().getKey().getClass() != Integer.class)
+			throw new RuntimeException();
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -91,5 +108,6 @@ public final class Test {
 		test5();
 		test6();
 		test7();
+		test8();
 	}
 }

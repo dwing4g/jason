@@ -31,27 +31,33 @@ public final class Jason {
 	static final int TYPE_FLOAT = 7; // float Float
 	static final int TYPE_DOUBLE = 8; // double Double
 	static final int TYPE_STRING = 9; // String
-	static final int TYPE_OBJECT = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<Obj>,HashMap<Str,Obj>)
+	static final int TYPE_OBJECT = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<?>,HashMap<?,?>)
 	static final int TYPE_POS = 11; // Pos(pos)
 	static final int TYPE_CUSTOM = 12; // user custom type
 	static final int TYPE_WRAP_FLAG = 0x10; // wrap<1~8>
 	static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12> (parser only needs clear() & add(v))
 	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12> (parser only needs clear() & put(k,v))
 
+	interface KeyReader {
+		Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
+	}
+
 	static final class FieldMeta {
 		final int type; // defined above
 		final long offset; // for unsafe access
 		final byte[] name; // field name
 		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
 		final int hash; // for FieldMetaMap
 		transient FieldMeta next; // for FieldMetaMap
 		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 
-		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass) {
+		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass, @Nullable KeyReader keyReader) {
 			this.type = type;
 			this.offset = offset;
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.klass = klass;
+			this.keyParser = keyReader;
 			this.hash = getKeyHash(this.name, 0, name.length());
 		}
 	}
@@ -90,6 +96,7 @@ public final class Jason {
 
 	public static final class ClassMeta<T> {
 		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
+		private static final @NonNull HashMap<Type, KeyReader> keyReaderMap = new HashMap<>(16);
 		private final FieldMeta[] valueTable;
 		final FieldMeta[] fieldMetas;
 		final @NonNull Class<T> klass;
@@ -117,6 +124,16 @@ public final class Jason {
 			typeMap.put(Long.class, TYPE_WRAP_FLAG + TYPE_LONG);
 			typeMap.put(Float.class, TYPE_WRAP_FLAG + TYPE_FLOAT);
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
+			keyReaderMap.put(Boolean.class, JasonReader::parseBooleanKey);
+			keyReaderMap.put(Byte.class, JasonReader::parseByteKey);
+			keyReaderMap.put(Short.class, JasonReader::parseShortKey);
+			keyReaderMap.put(Character.class, JasonReader::parseCharKey);
+			keyReaderMap.put(Integer.class, JasonReader::parseIntegerKey);
+			keyReaderMap.put(Long.class, JasonReader::parseLongKey);
+			keyReaderMap.put(Float.class, JasonReader::parseFloatKey);
+			keyReaderMap.put(Double.class, JasonReader::parseDoubleKey);
+			keyReaderMap.put(String.class, JasonReader::parseStringKey);
+			keyReaderMap.put(Object.class, JasonReader::parseStringKey);
 		}
 
 		ClassMeta(final @NonNull Class<T> klass) {
@@ -151,6 +168,7 @@ public final class Jason {
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
 						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
+					KeyReader keyReader = null;
 					Integer v = typeMap.get(fieldClass);
 					int type = 0;
 					if (v != null)
@@ -164,20 +182,22 @@ public final class Jason {
 								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 							}
 						}
-					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<String, ?>
+					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<?,?>
 						Type geneType = field.getGenericType();
 						if (geneType instanceof ParameterizedType) {
 							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
-							if (geneTypes.length == 2 && geneTypes[0] == String.class
-									&& (geneType = geneTypes[1]) instanceof Class) {
+							if (geneTypes.length == 2 && (geneType = geneTypes[1]) instanceof Class) {
 								v = typeMap.get(fieldClass = (Class<?>) geneType);
 								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
+								keyReader = keyReaderMap.get(geneTypes[0]);
+								if (keyReader == null)
+									keyReader = JasonReader::parseStringKey;
 							}
 						}
 					} else
 						type = TYPE_CUSTOM;
 					String name = ensureNonNull(field.getName());
-					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass));
+					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass, keyReader));
 				}
 			}
 		}
