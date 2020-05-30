@@ -26,6 +26,7 @@ public final class JasonWriter {
 	public static final int FLAG_PRETTY_FORMAT = 0x1;
 	public static final int FLAG_NO_QUOTE_KEY  = 0x2;
 	public static final int FLAG_WRITE_NULL    = 0x4;
+	public static final int FLAG_ALL           = 0x7;
 	//@formatter:on
 
 	private static final byte[] DIGITES_LUT = { // [200]
@@ -123,7 +124,7 @@ public final class JasonWriter {
 	private byte[] buf;
 	private int pos;
 	private int size; // sum of all blocks len except tail
-	private int flags;
+	private int flags = 0x10_0000;
 	private int tabs;
 
 	public JasonWriter() {
@@ -145,12 +146,21 @@ public final class JasonWriter {
 		buf = block.buf;
 	}
 
+	public int getDepthLimit() {
+		return flags >>> 16;
+	}
+
+	public JasonWriter setDepthLimit(int depth) {
+		flags = (flags & 0xffff) | (depth << 16);
+		return this;
+	}
+
 	public int getFlags() {
-		return flags;
+		return flags & FLAG_ALL;
 	}
 
 	public JasonWriter setFlags(int flags) {
-		this.flags = flags;
+		this.flags = this.flags & ~FLAG_ALL | flags & FLAG_ALL;
 		return this;
 	}
 
@@ -358,6 +368,23 @@ public final class JasonWriter {
 			break;
 		case TYPE_OBJECT:
 		case TYPE_CUSTOM:
+			if (tabs >= getDepthLimit()) {
+				ensure(14);
+				buf[pos++] = '"';
+				buf[pos++] = '!';
+				buf[pos++] = 'O';
+				buf[pos++] = 'V';
+				buf[pos++] = 'E';
+				buf[pos++] = 'R';
+				buf[pos++] = 'D';
+				buf[pos++] = 'E';
+				buf[pos++] = 'P';
+				buf[pos++] = 'T';
+				buf[pos++] = 'H';
+				buf[pos++] = '!';
+				buf[pos++] = '"';
+				break;
+			}
 			boolean comma = false;
 			if (obj instanceof Collection) {
 				ensure(1);

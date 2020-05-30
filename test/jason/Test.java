@@ -100,6 +100,18 @@ public final class Test {
 			throw new RuntimeException();
 	}
 
+	static class E {
+		int a;
+		E e;
+	}
+
+	public static void test9() {
+		E e = new E();
+		e.a = 123;
+		e.e = e;
+		System.out.println(JasonWriter.local().clear().setDepthLimit(4).write(e).toString());
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -109,5 +121,6 @@ public final class Test {
 		test6();
 		test7();
 		test8();
+		test9();
 	}
 }
