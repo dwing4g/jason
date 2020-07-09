@@ -34,7 +34,7 @@ public final class Jason {
 
 	static final class FieldMeta {
 		final int type; // defined above
-		final long offset; // for unsafe access
+		final int offset; // for unsafe access
 		final byte[] name; // field name
 		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
 		final @Nullable Constructor<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
@@ -43,7 +43,7 @@ public final class Jason {
 		transient FieldMeta next; // for FieldMetaMap
 		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 
-		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Constructor<?> ctor,
+		FieldMeta(int type, int offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Constructor<?> ctor,
 				@Nullable KeyReader keyReader) {
 			this.type = type;
 			this.offset = offset;
@@ -241,7 +241,7 @@ public final class Jason {
 							v = typeMap.get(fieldClass = subClass);
 							type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 						} else
-							type = TYPE_CUSTOM;
+							type = TYPE_CUSTOM; // or throw exception?
 					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<?,?>
 						if (!isAbstract(fieldClass))
 							fieldCtor = getDefCtor(fieldClass);
@@ -257,11 +257,15 @@ public final class Jason {
 							if (keyReader == null)
 								keyReader = JasonReader::parseStringKey;
 						} else
-							type = TYPE_CUSTOM;
+							type = TYPE_CUSTOM; // or throw exception?
 					} else
 						type = TYPE_CUSTOM;
-					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), ensureNonNull(field.getName()),
-							fieldClass, fieldCtor, keyReader));
+					long offset = getUnsafe().objectFieldOffset(field);
+					if (offset != (int) offset)
+						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
+								+ field.getName() + " in " + klass.getName());
+					put(j++, new FieldMeta(type, (int) offset, ensureNonNull(field.getName()), fieldClass, fieldCtor,
+							keyReader));
 				}
 			}
 		}
@@ -314,7 +318,7 @@ public final class Jason {
 			for (;; fm = fm.next) {
 				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
 					throw new IllegalStateException("conflicted field names: " + fieldMeta.getName() + " & "
-							+ fm.getName() + " in class: " + fieldMeta.klass.getName());
+							+ fm.getName() + " in " + fieldMeta.klass.getName());
 				if (fm.next == null) {
 					fm.next = fieldMeta;
 					return;
