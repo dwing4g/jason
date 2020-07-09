@@ -33,25 +33,25 @@ public final class Jason {
 	}
 
 	static final class FieldMeta {
+		final int hash; // for FieldMetaMap
 		final int type; // defined above
 		final int offset; // for unsafe access
-		final byte[] name; // field name
 		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
+		transient FieldMeta next; // for FieldMetaMap
+		final byte[] name; // field name
 		final @Nullable Constructor<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
 		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
-		final int hash; // for FieldMetaMap
-		transient FieldMeta next; // for FieldMetaMap
-		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 
 		FieldMeta(int type, int offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Constructor<?> ctor,
 				@Nullable KeyReader keyReader) {
+			this.name = name.getBytes(StandardCharsets.UTF_8);
+			this.hash = getKeyHash(this.name, 0, this.name.length);
 			this.type = type;
 			this.offset = offset;
-			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.klass = klass;
 			this.ctor = ctor;
 			this.keyParser = keyReader;
-			this.hash = getKeyHash(this.name, 0, name.length());
 		}
 
 		String getName() {
