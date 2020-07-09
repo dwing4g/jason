@@ -1,7 +1,11 @@
 package jason;
 
 import java.net.Inet4Address;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 public final class Test {
 	static class A {
@@ -112,6 +116,39 @@ public final class Test {
 		System.out.println(JasonWriter.local().clear().setDepthLimit(4).write(e).toString());
 	}
 
+	abstract static class F1 {
+		int f;
+	}
+
+	@SuppressWarnings("serial")
+	static class F2 extends ArrayList<Object> {
+		private F2() {
+		}
+	}
+
+	static class G {
+		Set<Integer> set1 = new HashSet<>();
+		HashSet<Integer> set2;
+		Set<Integer> set3;
+		Map<String, String> e1;
+		F1 f1;
+		F2 f2;
+	}
+
+	@SuppressWarnings("null")
+	public static void test10() throws ReflectiveOperationException {
+		G g = JasonReader.local().buf("{\"set1\":[123,456],\"set2\":[789],\"set3\":[],\"e1\":{\"1\":[]},\"f2\":[222]}")
+				.parse(G.class);
+		if (g.set1.getClass() != HashSet.class)
+			throw new RuntimeException();
+		if (g.set2 == null || g.set2.getClass() != HashSet.class)
+			throw new RuntimeException();
+		if (g.set3 == null || g.set3.getClass() != HashSet.class)
+			throw new RuntimeException();
+		if (((Number) g.f2.get(0)).intValue() != 222)
+			throw new RuntimeException();
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -122,5 +159,6 @@ public final class Test {
 		test7();
 		test8();
 		test9();
+		test10();
 	}
 }

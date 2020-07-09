@@ -2,19 +2,9 @@ package jason;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.reflect.AccessibleObject;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import sun.misc.Unsafe; //NOSONAR
 import org.eclipse.jdt.annotation.NonNull;
@@ -47,18 +37,25 @@ public final class Jason {
 		final long offset; // for unsafe access
 		final byte[] name; // field name
 		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+		final @Nullable Constructor<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
 		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
 		final int hash; // for FieldMetaMap
 		transient FieldMeta next; // for FieldMetaMap
 		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 
-		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass, @Nullable KeyReader keyReader) {
+		FieldMeta(int type, long offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Constructor<?> ctor,
+				@Nullable KeyReader keyReader) {
 			this.type = type;
 			this.offset = offset;
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.klass = klass;
+			this.ctor = ctor;
 			this.keyParser = keyReader;
 			this.hash = getKeyHash(this.name, 0, name.length());
+		}
+
+		String getName() {
+			return new String(name, StandardCharsets.UTF_8);
 		}
 	}
 
@@ -83,7 +80,7 @@ public final class Jason {
 		}
 	}
 
-	public static class Pos {
+	public static final class Pos {
 		public int pos;
 
 		public Pos() {
@@ -101,6 +98,7 @@ public final class Jason {
 		final FieldMeta[] fieldMetas;
 		final @NonNull Class<T> klass;
 		final @Nullable Constructor<T> ctor;
+		final boolean isAbstract;
 		transient @Nullable Parser<T> parser; // user custom parser
 		transient @Nullable Writer<T> writer; // user custom writer
 
@@ -136,31 +134,80 @@ public final class Jason {
 			keyReaderMap.put(Object.class, JasonReader::parseStringKey);
 		}
 
+		static boolean isAbstract(Class<?> klass) {
+			return (klass.getModifiers() & (Modifier.INTERFACE | Modifier.ABSTRACT)) != 0;
+		}
+
+		@SuppressWarnings("unchecked")
+		private static <T> @Nullable Constructor<T> getDefCtor(Class<T> klass) {
+			for (Constructor<?> c : klass.getDeclaredConstructors()) {
+				if (c.getParameterCount() == 0) {
+					try {
+						setAccessible(c);
+						return (Constructor<T>) c;
+					} catch (Exception e) {
+					}
+				}
+			}
+			return null;
+		}
+
+		private static Class<?> getCollectionSubClass(Type geneType) { // X<T>, X extends Y<T>, X implements Y<T>
+			if (geneType instanceof ParameterizedType) {
+				ParameterizedType paraType = (ParameterizedType) geneType;
+				Class<?> rawClass = (Class<?>) paraType.getRawType();
+				if (Collection.class.isAssignableFrom(rawClass)) {
+					Type type = paraType.getActualTypeArguments()[0];
+					if (type instanceof Class)
+						return (Class<?>) type;
+				}
+			}
+			if (geneType instanceof Class) {
+				Class<?> klass = (Class<?>) geneType;
+				for (Type subType : klass.getGenericInterfaces()) {
+					Class<?> subClass = getCollectionSubClass(subType);
+					if (subClass != null)
+						return subClass;
+				}
+				return getCollectionSubClass(klass.getGenericSuperclass());
+			}
+			return null;
+		}
+
+		private static Type[] getMapSubClasses(Type geneType) { // X<K,V>, X extends Y<K,V>, X implements Y<K,V>
+			if (geneType instanceof ParameterizedType) {
+				ParameterizedType paraType = (ParameterizedType) geneType;
+				if (Map.class.isAssignableFrom((Class<?>) paraType.getRawType())) {
+					Type[] subTypes = paraType.getActualTypeArguments();
+					if (subTypes.length == 2 && subTypes[0] instanceof Class && subTypes[1] instanceof Class)
+						return subTypes;
+				}
+			}
+			if (geneType instanceof Class) {
+				Class<?> klass = (Class<?>) geneType;
+				for (Type subType : klass.getGenericInterfaces()) {
+					Type[] subTypes = getMapSubClasses(subType);
+					if (subTypes != null)
+						return subTypes;
+				}
+				return getMapSubClasses(klass.getGenericSuperclass());
+			}
+			return null;
+		}
+
 		ClassMeta(final @NonNull Class<T> klass) {
 			int size = 0;
-			for (Class<?> c = klass; c != Object.class; c = c.getSuperclass())
+			for (Class<?> c = klass; c != null; c = c.getSuperclass())
 				for (Field field : getDeclaredFields(c))
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)
 						size++;
 			valueTable = new FieldMeta[1 << (32 - Integer.numberOfLeadingZeros(size * 2 - 1))];
 			fieldMetas = new FieldMeta[size];
 			this.klass = klass;
-			Constructor<T> ct = null;
-			for (Constructor<?> c : klass.getDeclaredConstructors()) {
-				if (c.getParameterCount() == 0) {
-					try {
-						setAccessible(c);
-						@SuppressWarnings("unchecked")
-						Constructor<T> ct0 = (Constructor<T>) c;
-						ct = ct0;
-					} catch (Exception e) {
-					}
-					break;
-				}
-			}
-			ctor = ct;
+			isAbstract = isAbstract(klass);
+			ctor = getDefCtor(klass);
 			ArrayList<Class<? super T>> classes = new ArrayList<>(2);
-			for (Class<? super T> c = klass; c != Object.class; c = c.getSuperclass())
+			for (Class<? super T> c = klass; c != null; c = c.getSuperclass())
 				classes.add(c);
 			for (int i = classes.size() - 1, j = 0; i >= 0; i--) {
 				Class<? super T> c = classes.get(i);
@@ -168,36 +215,53 @@ public final class Jason {
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
 						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
+					Constructor<?> fieldCtor = null;
 					KeyReader keyReader = null;
 					Integer v = typeMap.get(fieldClass);
 					int type = 0;
 					if (v != null)
 						type = v;
 					else if (Collection.class.isAssignableFrom(fieldClass)) { // Collection<?>
-						Type geneType = field.getGenericType();
-						if (geneType instanceof ParameterizedType) {
-							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
-							if (geneTypes.length == 1 && (geneType = geneTypes[0]) instanceof Class) {
-								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
-							}
-						}
+						if (!isAbstract(fieldClass))
+							fieldCtor = getDefCtor(fieldClass);
+						else if (fieldClass.isAssignableFrom(ArrayList.class)) // AbstractList,AbstractCollection,List,Collection
+							fieldCtor = getDefCtor(ArrayList.class);
+						else if (fieldClass.isAssignableFrom(HashSet.class)) // AbstractSet,Set
+							fieldCtor = getDefCtor(HashSet.class);
+						else if (fieldClass.isAssignableFrom(ArrayDeque.class)) // Deque
+							fieldCtor = getDefCtor(ArrayDeque.class);
+						else if (fieldClass.isAssignableFrom(TreeSet.class)) // NavigableSet
+							fieldCtor = getDefCtor(TreeSet.class);
+						else if (fieldClass.isAssignableFrom(LinkedList.class)) // AbstractSequentialList
+							fieldCtor = getDefCtor(LinkedList.class);
+						else if (fieldClass.isAssignableFrom(PriorityQueue.class)) // AbstractQueue
+							fieldCtor = getDefCtor(PriorityQueue.class);
+						Class<?> subClass = getCollectionSubClass(field.getGenericType());
+						if (subClass != null) {
+							v = typeMap.get(fieldClass = subClass);
+							type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
+						} else
+							type = TYPE_CUSTOM;
 					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<?,?>
-						Type geneType = field.getGenericType();
-						if (geneType instanceof ParameterizedType) {
-							Type[] geneTypes = ((ParameterizedType) geneType).getActualTypeArguments();
-							if (geneTypes.length == 2 && (geneType = geneTypes[1]) instanceof Class) {
-								v = typeMap.get(fieldClass = (Class<?>) geneType);
-								type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
-								keyReader = keyReaderMap.get(geneTypes[0]);
-								if (keyReader == null)
-									keyReader = JasonReader::parseStringKey;
-							}
-						}
+						if (!isAbstract(fieldClass))
+							fieldCtor = getDefCtor(fieldClass);
+						else if (fieldClass.isAssignableFrom(HashMap.class)) // AbstractMap,Map
+							fieldCtor = getDefCtor(HashMap.class);
+						else if (fieldClass.isAssignableFrom(TreeMap.class)) // NavigableMap,SortedMap
+							fieldCtor = getDefCtor(TreeMap.class);
+						Type[] subTypes = getMapSubClasses(field.getGenericType());
+						if (subTypes != null) {
+							v = typeMap.get(fieldClass = ensureNonNull((Class<?>) subTypes[1]));
+							type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
+							keyReader = keyReaderMap.get(subTypes[0]);
+							if (keyReader == null)
+								keyReader = JasonReader::parseStringKey;
+						} else
+							type = TYPE_CUSTOM;
 					} else
 						type = TYPE_CUSTOM;
-					String name = ensureNonNull(field.getName());
-					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), name, fieldClass, keyReader));
+					put(j++, new FieldMeta(type, getUnsafe().objectFieldOffset(field), ensureNonNull(field.getName()),
+							fieldClass, fieldCtor, keyReader));
 				}
 			}
 		}
@@ -249,9 +313,8 @@ public final class Jason {
 			}
 			for (;; fm = fm.next) {
 				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
-					throw new IllegalStateException("conflicted field names: "
-							+ new String(fieldMeta.name, StandardCharsets.UTF_8) + " & "
-							+ new String(fm.name, StandardCharsets.UTF_8) + " in class: " + fieldMeta.klass.getName());
+					throw new IllegalStateException("conflicted field names: " + fieldMeta.getName() + " & "
+							+ fm.getName() + " in class: " + fieldMeta.klass.getName());
 				if (fm.next == null) {
 					fm.next = fieldMeta;
 					return;

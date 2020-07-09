@@ -343,6 +343,8 @@ public final class JasonReader {
 			for (int b = skipNext(); b != ']'; b = skipVar())
 				c.add(parser.parse(this, classMeta, null));
 		} else {
+			if (classMeta.isAbstract)
+				throw new InstantiationException("abstract element class: " + elemClass.getName());
 			for (int b = skipNext(); b != ']'; b = skipVar())
 				c.add(parse0(allocObj(classMeta), classMeta));
 		}
@@ -394,7 +396,11 @@ public final class JasonReader {
 		Parser<? super T> parser = classMeta.parser;
 		if (parser != null)
 			return (T) parser.parse0(this, classMeta, obj);
-		return parse0(obj != null ? obj : (T) allocObj(classMeta), classMeta);
+		if (obj != null)
+			return parse0(obj, classMeta);
+		if (classMeta.isAbstract)
+			throw new InstantiationException("abstract class: " + classMeta.klass.getName());
+		return parse0((T) allocObj(classMeta), classMeta);
 	}
 
 	public <T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
@@ -440,12 +446,8 @@ public final class JasonReader {
 				break;
 			case TYPE_POS:
 				Pos p = (Pos) unsafe.getObject(obj, offset);
-				if (p == null) {
-					ClassMeta<?> subClassMeta = fm.classMeta;
-					if (subClassMeta == null)
-						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
-					unsafe.putObject(obj, offset, p = (Pos) allocObj(subClassMeta));
-				}
+				if (p == null)
+					unsafe.putObject(obj, offset, p = new Pos());
 				p.pos = pos;
 				break;
 			case TYPE_CUSTOM:
@@ -462,8 +464,12 @@ public final class JasonReader {
 					Parser<?> parser = subClassMeta.parser;
 					if (parser != null) {
 						Object newSubObj = parser.parse0(this, subClassMeta, subObj);
-						if (newSubObj != subObj)
+						if (newSubObj != subObj) {
+							if (newSubObj != null && !fm.klass.isAssignableFrom(newSubObj.getClass()))
+								throw new InstantiationException("incompatible type(" + newSubObj.getClass()
+										+ ") for field: " + fm.getName() + " in " + classMeta.klass.getName());
 							unsafe.putObject(obj, offset, newSubObj);
+						}
 					} else if (parse0(subObj, subClassMeta) == null)
 						unsafe.putObject(obj, offset, null);
 				} else {
@@ -471,8 +477,15 @@ public final class JasonReader {
 					if (subClassMeta == null)
 						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 					Parser<?> parser = subClassMeta.parser;
-					unsafe.putObject(obj, offset, parser != null ? parser.parse0(this, subClassMeta, null)
-							: parse0(allocObj(subClassMeta), subClassMeta));
+					if (parser != null)
+						subObj = parser.parse0(this, subClassMeta, null);
+					else {
+						if (subClassMeta.isAbstract)
+							throw new InstantiationException(
+									"abstract field: " + fm.getName() + " in " + classMeta.klass.getName());
+						subObj = parse0(allocObj(subClassMeta), subClassMeta);
+					}
+					unsafe.putObject(obj, offset, subObj);
 				}
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
@@ -508,9 +521,28 @@ public final class JasonReader {
 					}
 					@SuppressWarnings("unchecked")
 					Collection<Object> c = (Collection<Object>) unsafe.getObject(obj, offset);
-					if (c == null)
-						unsafe.putObject(obj, offset, c = new ArrayList<>());
-					else
+					if (c == null) {
+						Constructor<?> ctor = fm.ctor;
+						if (ctor != null) {
+							@SuppressWarnings("unchecked")
+							Collection<Object> c2 = ensureNonNull(
+									(Collection<Object>) ctor.newInstance((Object[]) null));
+							unsafe.putObject(obj, offset, c = c2);
+						} else {
+							ClassMeta<?> cm = getClassMeta(fm.klass);
+							Parser<?> parser = cm.parser;
+							if (parser == null)
+								throw new InstantiationException("abstract Collection field: " + fm.getName() + " in "
+										+ classMeta.klass.getName());
+							Object c2 = parser.parse0(this, cm, null);
+							if (c2 != null && !fm.klass.isAssignableFrom(c2.getClass()))
+								throw new InstantiationException(
+										"incompatible type(" + c2.getClass() + ") for Collection field: " + fm.getName()
+												+ " in " + classMeta.klass.getName());
+							unsafe.putObject(obj, offset, c2);
+							break;
+						}
+					} else
 						c.clear();
 					b = skipNext();
 					switch (type & 0xf) {
@@ -567,6 +599,9 @@ public final class JasonReader {
 							for (; b != ']'; b = skipVar())
 								c.add(parser.parse0(this, subClassMeta, null));
 						} else {
+							if (subClassMeta.isAbstract)
+								throw new InstantiationException(
+										"abstract element class: " + fm.getName() + " in " + classMeta.klass.getName());
 							for (; b != ']'; b = skipVar())
 								c.add(parse0(allocObj(subClassMeta), subClassMeta));
 						}
@@ -580,9 +615,27 @@ public final class JasonReader {
 					}
 					@SuppressWarnings("unchecked")
 					Map<Object, Object> m = (Map<Object, Object>) unsafe.getObject(obj, offset);
-					if (m == null)
-						unsafe.putObject(obj, offset, m = new HashMap<>());
-					else
+					if (m == null) {
+						Constructor<?> ctor = fm.ctor;
+						if (ctor != null) {
+							@SuppressWarnings("unchecked")
+							Map<Object, Object> m2 = ensureNonNull(
+									(Map<Object, Object>) ctor.newInstance((Object[]) null));
+							unsafe.putObject(obj, offset, m = m2);
+						} else {
+							ClassMeta<?> cm = getClassMeta(fm.klass);
+							Parser<?> parser = cm.parser;
+							if (parser == null)
+								throw new InstantiationException(
+										"abstract Map field: " + fm.getName() + " in " + classMeta.klass.getName());
+							Object m2 = parser.parse0(this, cm, null);
+							if (m2 != null && !fm.klass.isAssignableFrom(m2.getClass()))
+								throw new InstantiationException("incompatible type(" + m2.getClass()
+										+ ") for Map field: " + fm.getName() + " in " + classMeta.klass.getName());
+							unsafe.putObject(obj, offset, m2);
+							break;
+						}
+					} else
 						m.clear();
 					b = skipNext();
 					KeyReader keyParser = ensureNonNull(fm.keyParser);
@@ -667,6 +720,9 @@ public final class JasonReader {
 								m.put(k, parser.parse0(this, subClassMeta, null));
 							}
 						} else {
+							if (subClassMeta.isAbstract)
+								throw new InstantiationException(
+										"abstract value class: " + fm.getName() + " in " + classMeta.klass.getName());
 							for (; b != '}'; b = skipVar()) {
 								Object k = keyParser.parse(this, b);
 								skipColon();
