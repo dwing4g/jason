@@ -1421,9 +1421,7 @@ public final class JasonReader {
 		}
 		if (minus)
 			i = -i;
-		int j = (int) i;
-		if (j == i)
-			return j;
-		return i;
+		final int j = (int) i;
+		return j == i ? (Object) j : i;
 	}
 }
