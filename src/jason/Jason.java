@@ -241,7 +241,7 @@ public final class Jason {
 							v = typeMap.get(fieldClass = subClass);
 							type = TYPE_LIST_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 						} else
-							type = TYPE_CUSTOM; // or throw exception?
+							type = TYPE_LIST_FLAG + TYPE_OBJECT;
 					} else if (Map.class.isAssignableFrom(fieldClass)) { // Map<?,?>
 						if (!isAbstract(fieldClass))
 							fieldCtor = getDefCtor(fieldClass);
@@ -256,8 +256,10 @@ public final class Jason {
 							keyReader = keyReaderMap.get(subTypes[0]);
 							if (keyReader == null)
 								keyReader = JasonReader::parseStringKey;
-						} else
-							type = TYPE_CUSTOM; // or throw exception?
+						} else {
+							type = TYPE_MAP_FLAG + TYPE_OBJECT;
+							keyReader = JasonReader::parseStringKey;
+						}
 					} else
 						type = TYPE_CUSTOM;
 					long offset = getUnsafe().objectFieldOffset(field);

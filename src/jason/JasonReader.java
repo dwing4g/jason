@@ -1097,7 +1097,6 @@ public final class JasonReader {
 				}
 				if ((b = buffer[++p]) == '+')
 					b = buffer[++p];
-
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
@@ -1195,7 +1194,6 @@ public final class JasonReader {
 				}
 				if ((b = buffer[++p]) == '+')
 					b = buffer[++p];
-
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
@@ -1293,7 +1291,6 @@ public final class JasonReader {
 				}
 				if ((b = buffer[++p]) == '+')
 					b = buffer[++p];
-
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
@@ -1392,7 +1389,6 @@ public final class JasonReader {
 				}
 				if ((b = buffer[++p]) == '+')
 					b = buffer[++p];
-
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
@@ -1424,7 +1420,10 @@ public final class JasonReader {
 			return minus ? -d : d;
 		}
 		if (minus)
-			return (i = -i) >= Integer.MIN_VALUE ? (int) i : i;
-		return i <= Integer.MAX_VALUE ? (int) i : i;
+			i = -i;
+		int j = (int) i;
+		if (j == i)
+			return j;
+		return i;
 	}
 }
