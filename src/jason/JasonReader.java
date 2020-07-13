@@ -9,9 +9,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
-import jason.Jason.ClassMeta;
-import jason.Jason.FieldMeta;
-import jason.Jason.Parser;
 import static jason.Jason.*;
 
 public final class JasonReader {
@@ -138,7 +135,7 @@ public final class JasonReader {
 		return buf;
 	}
 
-	public @NonNull JasonReader buf(String s) {
+	public @NonNull JasonReader buf(@NonNull String s) {
 		buf = s.getBytes(StandardCharsets.UTF_8);
 		pos = 0;
 		return this;
@@ -165,7 +162,7 @@ public final class JasonReader {
 		return this;
 	}
 
-	public @NonNull JasonReader pos(Pos p) {
+	public @NonNull JasonReader pos(@NonNull Pos p) {
 		pos = p.pos;
 		return this;
 	}
@@ -771,9 +768,9 @@ public final class JasonReader {
 		}
 	}
 
-	@Nullable
-	static String parseStringKey(@NonNull JasonReader jr, int b) throws ReflectiveOperationException {
-		return b == '"' ? jr.parseString(true) : jr.parseStringNoQuot();
+	static @NonNull String parseStringKey(@NonNull JasonReader jr, int b) throws ReflectiveOperationException {
+		String key = b == '"' ? jr.parseString(true) : jr.parseStringNoQuot();
+		return key != null ? key : "";
 	}
 
 	static @NonNull Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {

@@ -29,7 +29,7 @@ public final class Jason {
 	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12> (parser only needs clear() & put(k,v))
 
 	interface KeyReader {
-		Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
+		@NonNull Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
 	}
 
 	static final class FieldMeta {
@@ -38,7 +38,7 @@ public final class Jason {
 		final int offset; // for unsafe access
 		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
 		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
-		transient FieldMeta next; // for FieldMetaMap
+		transient @Nullable FieldMeta next; // for FieldMetaMap
 		final byte[] name; // field name
 		final @Nullable Constructor<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
 		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
@@ -54,6 +54,7 @@ public final class Jason {
 			this.keyParser = keyReader;
 		}
 
+		@NonNull
 		String getName() {
 			return new String(name, StandardCharsets.UTF_8);
 		}
@@ -134,12 +135,12 @@ public final class Jason {
 			keyReaderMap.put(Object.class, JasonReader::parseStringKey);
 		}
 
-		static boolean isAbstract(Class<?> klass) {
+		static boolean isAbstract(@NonNull Class<?> klass) {
 			return (klass.getModifiers() & (Modifier.INTERFACE | Modifier.ABSTRACT)) != 0;
 		}
 
 		@SuppressWarnings("unchecked")
-		private static <T> @Nullable Constructor<T> getDefCtor(Class<T> klass) {
+		private static <T> @Nullable Constructor<T> getDefCtor(@NonNull Class<T> klass) {
 			for (Constructor<?> c : klass.getDeclaredConstructors()) {
 				if (c.getParameterCount() == 0) {
 					try {
@@ -152,7 +153,7 @@ public final class Jason {
 			return null;
 		}
 
-		private static Class<?> getCollectionSubClass(Type geneType) { // X<T>, X extends Y<T>, X implements Y<T>
+		private static @Nullable Class<?> getCollectionSubClass(Type geneType) { // X<T>, X extends Y<T>, X implements Y<T>
 			if (geneType instanceof ParameterizedType) {
 				ParameterizedType paraType = (ParameterizedType)geneType;
 				Class<?> rawClass = (Class<?>)paraType.getRawType();
@@ -317,14 +318,16 @@ public final class Jason {
 				valueTable[i] = fieldMeta;
 				return;
 			}
-			for (;; fm = fm.next) {
+			for (;;) {
 				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
 					throw new IllegalStateException("conflicted field names: " + fieldMeta.getName() + " & "
 							+ fm.getName() + " in " + fieldMeta.klass.getName());
-				if (fm.next == null) {
+				FieldMeta next = fm.next;
+				if (next == null) {
 					fm.next = fieldMeta;
 					return;
 				}
+				fm = next;
 			}
 		}
 	}
@@ -366,7 +369,7 @@ public final class Jason {
 		}
 	}
 
-	static Field getDeclaredField(Class<?> klass, String fieldName) {
+	static @Nullable Field getDeclaredField(Class<?> klass, String fieldName) {
 		for (Field field : getDeclaredFields(klass))
 			if (field.getName().equals(fieldName))
 				return field;

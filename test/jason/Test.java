@@ -89,7 +89,7 @@ public final class Test {
 	}
 
 	static class D {
-		HashMap<Integer, Integer> m = new HashMap<>();
+		final HashMap<Integer, Integer> m = new HashMap<>();
 	}
 
 	public static void test8() throws ReflectiveOperationException {
@@ -127,7 +127,7 @@ public final class Test {
 	}
 
 	static class G {
-		Set<Integer> set1 = new HashSet<>();
+		final Set<Integer> set1 = new HashSet<>();
 		HashSet<Integer> set2;
 		Set<Integer> set3;
 		Map<String, String> e1;

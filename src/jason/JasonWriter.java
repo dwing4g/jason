@@ -8,9 +8,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
-import jason.Jason.ClassMeta;
-import jason.Jason.FieldMeta;
-import jason.Jason.Writer;
 import static jason.Jason.*;
 
 public final class JasonWriter {
@@ -118,7 +115,7 @@ public final class JasonWriter {
 	}
 
 	private final @NonNull BlockAllocator allocator;
-	private Block tail;
+	private @NonNull Block tail;
 	private byte[] buf;
 	private int pos;
 	private int size; // sum of all blocks len except tail
@@ -148,7 +145,7 @@ public final class JasonWriter {
 		return flags >>> 16;
 	}
 
-	public JasonWriter setDepthLimit(int depth) {
+	public @NonNull JasonWriter setDepthLimit(int depth) {
 		flags = (flags & 0xffff) | (depth << 16);
 		return this;
 	}
@@ -157,7 +154,7 @@ public final class JasonWriter {
 		return flags & FLAG_ALL;
 	}
 
-	public JasonWriter setFlags(int flags) {
+	public @NonNull JasonWriter setFlags(int flags) {
 		this.flags = this.flags & ~FLAG_ALL | flags & FLAG_ALL;
 		return this;
 	}
@@ -166,7 +163,7 @@ public final class JasonWriter {
 		return (flags & FLAG_PRETTY_FORMAT) != 0;
 	}
 
-	public JasonWriter setPrettyFormat(boolean enable) {
+	public @NonNull JasonWriter setPrettyFormat(boolean enable) {
 		if (enable)
 			flags |= FLAG_PRETTY_FORMAT;
 		else
@@ -178,7 +175,7 @@ public final class JasonWriter {
 		return (flags & FLAG_NO_QUOTE_KEY) != 0;
 	}
 
-	public JasonWriter setNoQuoteKey(boolean enable) {
+	public @NonNull JasonWriter setNoQuoteKey(boolean enable) {
 		if (enable)
 			flags |= FLAG_NO_QUOTE_KEY;
 		else
@@ -190,7 +187,7 @@ public final class JasonWriter {
 		return (flags & FLAG_WRITE_NULL) != 0;
 	}
 
-	public JasonWriter setWriteNull(boolean enable) {
+	public @NonNull JasonWriter setWriteNull(boolean enable) {
 		if (enable)
 			flags |= FLAG_WRITE_NULL;
 		else
@@ -198,8 +195,8 @@ public final class JasonWriter {
 		return this;
 	}
 
-	public JasonWriter clear() { // left the empty head block
-		Block head = tail.next;
+	public @NonNull JasonWriter clear() { // left the empty head block
+		Block head = ensureNonNull(tail.next);
 		for (Block block = head; block != tail; block = block.next)
 			allocator.free(ensureNonNull(block));
 		tail = head;
@@ -211,13 +208,15 @@ public final class JasonWriter {
 		return this;
 	}
 
-	public JasonWriter free() {
+	@SuppressWarnings("null")
+	public @NonNull JasonWriter free() {
 		for (Block block = tail.next;; block = block.next) {
 			allocator.free(ensureNonNull(block));
 			if (block == tail)
 				break;
 		}
-		tail = null;
+		//noinspection ConstantConditions
+		tail = null; //NOSONAR
 		buf = EMPTY;
 		pos = 0;
 		size = 0;
@@ -262,12 +261,9 @@ public final class JasonWriter {
 
 	void appendBlock(int len) {
 		Block block = allocator.alloc(len);
-		if (tail != null) {
-			block.next = tail.next;
-			tail.next = block;
-			tail.len = pos;
-		} else
-			block.next = block;
+		block.next = tail.next;
+		tail.next = block;
+		tail.len = pos;
 		tail = block;
 		buf = block.buf;
 		size += pos;
@@ -1099,7 +1095,7 @@ public final class JasonWriter {
 			buf[pos++] = '"';
 	}
 
-	public void write(final String str, final boolean noQuote) {
+	public void write(final @NonNull String str, final boolean noQuote) {
 		if (!noQuote)
 			buf[pos++] = '"';
 		for (int i = 0, n = str.length(); i < n; i++) {
