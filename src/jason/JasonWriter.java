@@ -103,8 +103,6 @@ public final class JasonWriter {
 	public static class Block {
 		public byte[] buf;
 		public int len;
-		@SuppressWarnings("null")
-		@NonNull
 		Block next;
 	}
 
@@ -203,7 +201,7 @@ public final class JasonWriter {
 	public JasonWriter clear() { // left the empty head block
 		Block head = tail.next;
 		for (Block block = head; block != tail; block = block.next)
-			allocator.free(block);
+			allocator.free(ensureNonNull(block));
 		tail = head;
 		head.next = head;
 		buf = head.buf;
@@ -215,7 +213,7 @@ public final class JasonWriter {
 
 	public JasonWriter free() {
 		for (Block block = tail.next;; block = block.next) {
-			allocator.free(block);
+			allocator.free(ensureNonNull(block));
 			if (block == tail)
 				break;
 		}
@@ -314,57 +312,56 @@ public final class JasonWriter {
 		Class<?> klass = obj.getClass();
 		switch (ClassMeta.getType(klass)) {
 		case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
-			if (((Boolean) obj).booleanValue()) {
+			if ((Boolean)obj) {
 				ensure(5);
 				buf[pos++] = 't';
 				buf[pos++] = 'r';
 				buf[pos++] = 'u';
-				buf[pos++] = 'e';
 			} else {
 				ensure(6);
 				buf[pos++] = 'f';
 				buf[pos++] = 'a';
 				buf[pos++] = 'l';
 				buf[pos++] = 's';
-				buf[pos++] = 'e';
 			}
+			buf[pos++] = 'e';
 			break;
 		case TYPE_WRAP_FLAG + TYPE_BYTE:
 			ensure(5);
-			write(((Byte) obj).byteValue());
+			write(((Byte)obj).byteValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_SHORT:
 			ensure(7);
-			write(((Short) obj).shortValue());
+			write(((Short)obj).shortValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_CHAR:
 			ensure(7);
-			write(((Character) obj).charValue());
+			write(((Character)obj).charValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_INT:
 			ensure(12);
-			write(((Integer) obj).intValue());
+			write(((Integer)obj).intValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_LONG:
 			ensure(21);
-			write(((Long) obj).longValue());
+			write(((Long)obj).longValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_FLOAT:
 			ensure(26);
-			write(((Float) obj).floatValue());
+			write(((Float)obj).floatValue());
 			break;
 		case TYPE_WRAP_FLAG + TYPE_DOUBLE:
 			ensure(26);
-			write(((Double) obj).doubleValue());
+			write(((Double)obj).doubleValue());
 			break;
 		case TYPE_STRING:
-			String s = (String) obj;
+			String s = (String)obj;
 			ensure(s.length() * 6 + 3); // "xxxxxx"
 			write(s, false);
 			break;
 		case TYPE_POS:
 			ensure(12);
-			write(((Pos) obj).pos);
+			write(((Pos)obj).pos);
 			break;
 		case TYPE_OBJECT:
 		case TYPE_CUSTOM:
@@ -389,7 +386,7 @@ public final class JasonWriter {
 			if (obj instanceof Collection) {
 				ensure(1);
 				buf[pos++] = '[';
-				for (Object o : (Collection<?>) obj) {
+				for (Object o : (Collection<?>)obj) {
 					if (comma)
 						buf[pos++] = ',';
 					write(o);
@@ -416,7 +413,7 @@ public final class JasonWriter {
 				ensure(1);
 				buf[pos++] = '{';
 				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
-					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+					for (Entry<?, ?> e : ((Map<?, ?>)obj).entrySet()) {
 						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
 							continue;
 						if (comma)
@@ -430,7 +427,7 @@ public final class JasonWriter {
 					}
 					ensure(2);
 				} else {
-					for (Entry<?, ?> e : ((Map<?, ?>) obj).entrySet()) {
+					for (Entry<?, ?> e : ((Map<?, ?>)obj).entrySet()) {
 						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
 							continue;
 						if (comma)
@@ -474,15 +471,13 @@ public final class JasonWriter {
 					continue;
 				byte[] name = fieldMeta.name;
 				int posBegin = pos;
+				if (comma)
+					buf[pos++] = ',';
 				if (!prettyFormat) {
-					if (comma)
-						buf[pos++] = ',';
 					ensure(name.length + 3); // "xxxxxx":
 					write(name, noQuote);
 					buf[pos++] = ':';
 				} else {
-					if (comma)
-						buf[pos++] = ',';
 					writeNewLineTabs();
 					ensure(name.length + 4); // "xxxxxx":_
 					write(name, noQuote);
@@ -496,15 +491,14 @@ public final class JasonWriter {
 						buf[pos++] = 't';
 						buf[pos++] = 'r';
 						buf[pos++] = 'u';
-						buf[pos++] = 'e';
 					} else {
 						ensure(6);
 						buf[pos++] = 'f';
 						buf[pos++] = 'a';
 						buf[pos++] = 'l';
 						buf[pos++] = 's';
-						buf[pos++] = 'e';
 					}
+					buf[pos++] = 'e';
 					break;
 				case TYPE_BYTE:
 					ensure(5);
@@ -543,7 +537,7 @@ public final class JasonWriter {
 						buf[pos++] = 'l';
 						break;
 					}
-					s = (String) subObj;
+					s = (String)subObj;
 					ensure(s.length() * 6 + 3); // "xxxxxx",
 					write(s, false);
 					break;
@@ -596,13 +590,13 @@ public final class JasonWriter {
 			for (int i = 0, n = block.len; i < n;) {
 				int b = buffer[i];
 				if (b >= 0) {
-					res[p++] = (char) b;
+					res[p++] = (char)b;
 					i++;
 				} else if (b >= -0x20) {
-					res[p++] = (char) (((b & 0xf) << 12) + ((buffer[i + 1] & 0x3f) << 6) + (buffer[i + 2] & 0x3f));
+					res[p++] = (char)(((b & 0xf) << 12) + ((buffer[i + 1] & 0x3f) << 6) + (buffer[i + 2] & 0x3f));
 					i += 3;
 				} else {
-					res[p++] = (char) (((b & 0x1f) << 6) + (buffer[i + 1] & 0x3f));
+					res[p++] = (char)(((b & 0x1f) << 6) + (buffer[i + 1] & 0x3f));
 					i += 2;
 				}
 			}
@@ -628,17 +622,17 @@ public final class JasonWriter {
 					break;
 			if (i == n) {
 				try {
-					String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
+					String str = ensureNonNull((String)unsafe.allocateInstance(String.class));
 					unsafe.putObject(str, STRING_VALUE_OFFSET, bytes == buf ? Arrays.copyOf(bytes, n) : bytes);
 					return str;
-				} catch (InstantiationException e) {
+				} catch (InstantiationException ignored) {
 				}
 			}
 			return new String(bytes, 0, n, StandardCharsets.UTF_8);
 		}
 		char[] chars = toChars();
 		try {
-			String str = ensureNonNull((String) unsafe.allocateInstance(String.class));
+			String str = ensureNonNull((String)unsafe.allocateInstance(String.class));
 			unsafe.putObject(str, STRING_VALUE_OFFSET, chars);
 			return str;
 		} catch (InstantiationException e) {
@@ -680,7 +674,7 @@ public final class JasonWriter {
 	void grisu2(final double d, final int maxDecimalPlaces) {
 		// {f,e}.reset(d)
 		long f = Double.doubleToRawLongBits(d);
-		int e = (int) (f >>> DOUBLE_SIGNIFICAND_SIZE); // [0,0x3ff]
+		int e = (int)(f >>> DOUBLE_SIGNIFICAND_SIZE); // [0,0x3ff]
 		f &= DOUBLE_SIGNIFICAND_MASK; // [0,1e52)
 		if (e != 0) {
 			f += DOUBLE_HIDDEN_BIT; // [1e52,1e53)
@@ -714,7 +708,7 @@ public final class JasonWriter {
 		// getCachedPower(pe)
 		// int k = static_cast<int>(ceil((-61 - e) * 0.30102999566398114)) + 374;
 		final double dk = (-61 - pe) * 0.30102999566398114 + 347; // dk must be positive, so can do ceiling in positive
-		int kk = (int) dk;
+		int kk = (int)dk;
 		if (dk - kk > 0)
 			kk++;
 		final int idx = (kk >> 3) + 1;
@@ -729,7 +723,7 @@ public final class JasonWriter {
 
 		// digitGen(f, pf, e, delta)
 		final long ff = 1L << e;
-		int p1 = (int) (pf >>> e) & 0x7fff_ffff;
+		int p1 = (int)(pf >>> e) & 0x7fff_ffff;
 		long p2 = pf & (ff - 1), tmp;
 		pf -= f;
 		int len = 0, kappa, v; // kappa in [0, 9]
@@ -757,18 +751,18 @@ public final class JasonWriter {
 				default: continue;
 			} //@formatter:on
 			if ((v | len) != 0)
-				buf[pos + len++] = (byte) ('0' + v);
+				buf[pos + len++] = (byte)('0' + v);
 		} while (Long.compareUnsigned((tmp = (p1 << e) + p2), delta) > 0 && --kappa > 0);
 		if (kappa != 0) {
 			kk += --kappa;
-			grisuRound(len, delta, tmp, (long) POW10[kappa] << e, pf);
+			grisuRound(len, delta, tmp, (long)POW10[kappa] << e, pf);
 		} else { // kappa == 0
 			for (;;) {
 				p2 *= 10;
 				delta *= 10;
-				final int b = (int) (p2 >>> e);
+				final int b = (int)(p2 >>> e);
 				if ((b | len) != 0)
-					buf[pos + len++] = (byte) ('0' + b);
+					buf[pos + len++] = (byte)('0' + b);
 				p2 &= ff - 1;
 				kappa++;
 				if (Long.compareUnsigned(p2, delta) < 0) {
@@ -850,15 +844,15 @@ public final class JasonWriter {
 			k = -k;
 		}
 		if (k < 10) {
-			buf[pos++] = (byte) ('0' + k);
+			buf[pos++] = (byte)('0' + k);
 			return;
 		}
 		if (k >= 100) {
-			buf[pos++] = (byte) ('0' + k / 100);
+			buf[pos++] = (byte)('0' + k / 100);
 			k %= 100;
 		}
-		buf[pos++] = (byte) ('0' + k / 10);
-		buf[pos++] = (byte) ('0' + k % 10);
+		buf[pos++] = (byte)('0' + k / 10);
+		buf[pos++] = (byte)('0' + k % 10);
 	}
 
 	public void write(double d, final int maxDecimalPlaces) {
@@ -885,7 +879,7 @@ public final class JasonWriter {
 	public void write(int value) {
 		if (value < 0) {
 			if (value == Integer.MIN_VALUE) {
-				write((long) value);
+				write((long)value);
 				return;
 			}
 			buf[pos++] = '-';
@@ -927,7 +921,7 @@ public final class JasonWriter {
 				buf[pos++] = DIGITES_LUT[i];
 				buf[pos++] = DIGITES_LUT[i + 1];
 			} else
-				buf[pos++] = (byte) ('0' + a);
+				buf[pos++] = (byte)('0' + a);
 			final int b = value / 1_0000;
 			final int c = value % 1_0000;
 			final int d1 = (b / 100) << 1;
@@ -956,7 +950,7 @@ public final class JasonWriter {
 			value = -value;
 		}
 		if (value < 1_0000_0000) {
-			int v = (int) value;
+			int v = (int)value;
 			if (v < 1_0000) {
 				final int d1 = (v / 100) << 1;
 				final int d2 = (v % 100) << 1;
@@ -987,8 +981,8 @@ public final class JasonWriter {
 				buf[pos++] = DIGITES_LUT[d4 + 1];
 			}
 		} else if (value < 1_0000_0000_0000_0000L) {
-			final int v0 = (int) (value / 1_0000_0000);
-			final int v1 = (int) (value % 1_0000_0000);
+			final int v0 = (int)(value / 1_0000_0000);
+			final int v1 = (int)(value % 1_0000_0000);
 			final int b0 = v0 / 1_0000;
 			final int c0 = v0 % 1_0000;
 			final int d1 = (b0 / 100) << 1;
@@ -1025,29 +1019,22 @@ public final class JasonWriter {
 			buf[pos++] = DIGITES_LUT[d8];
 			buf[pos++] = DIGITES_LUT[d8 + 1];
 		} else {
-			final int a = (int) (value / 1_0000_0000_0000_0000L); // [1,922]
+			final int a = (int)(value / 1_0000_0000_0000_0000L); // [1,922]
 			value %= 1_0000_0000_0000_0000L;
 			if (a < 10)
-				buf[pos++] = (byte) ('0' + a);
+				buf[pos++] = (byte)('0' + a);
 			else if (a < 100) {
 				final int i = a << 1;
 				buf[pos++] = DIGITES_LUT[i];
 				buf[pos++] = DIGITES_LUT[i + 1];
-			} else if (a < 1000) {
-				buf[pos++] = (byte) ('0' + a / 100);
+			} else {
+				buf[pos++] = (byte)('0' + a / 100);
 				final int i = (a % 100) << 1;
 				buf[pos++] = DIGITES_LUT[i];
 				buf[pos++] = DIGITES_LUT[i + 1];
-			} else {
-				final int i = (a / 100) << 1;
-				final int j = (a % 100) << 1;
-				buf[pos++] = DIGITES_LUT[i];
-				buf[pos++] = DIGITES_LUT[i + 1];
-				buf[pos++] = DIGITES_LUT[j];
-				buf[pos++] = DIGITES_LUT[j + 1];
 			}
-			final int v0 = (int) (value / 1_0000_0000);
-			final int v1 = (int) (value % 1_0000_0000);
+			final int v0 = (int)(value / 1_0000_0000);
+			final int v1 = (int)(value % 1_0000_0000);
 			final int b0 = v0 / 1_0000;
 			final int c0 = v0 % 1_0000;
 			final int d1 = (b0 / 100) << 1;
@@ -1099,7 +1086,7 @@ public final class JasonWriter {
 				if (b == 'u') {
 					buf[pos++] = '0';
 					buf[pos++] = '0';
-					buf[pos++] = (byte) ('0' + (c >> 4));
+					buf[pos++] = (byte)('0' + (c >> 4));
 					buf[pos++] = HC[c & 0xf];
 				}
 			}
@@ -1120,24 +1107,24 @@ public final class JasonWriter {
 			if (c < 0x80) {
 				byte b = ESCAPE[c];
 				if (b == 0)
-					buf[pos++] = (byte) c;
+					buf[pos++] = (byte)c;
 				else {
 					buf[pos++] = '\\';
 					buf[pos++] = b;
 					if (b == 'u') {
 						buf[pos++] = '0';
 						buf[pos++] = '0';
-						buf[pos++] = (byte) ('0' + (c >> 4));
+						buf[pos++] = (byte)('0' + (c >> 4));
 						buf[pos++] = HC[c & 0xf];
 					}
 				}
 			} else if (c < 0x800) { // 110x xxxx  10xx xxxx
-				buf[pos++] = (byte) (0xc0 + (c >> 6));
-				buf[pos++] = (byte) (0x80 + (c & 0x3f));
+				buf[pos++] = (byte)(0xc0 + (c >> 6));
+				buf[pos++] = (byte)(0x80 + (c & 0x3f));
 			} else { // 1110 xxxx  10xx xxxx  10xx xxxx
-				buf[pos++] = (byte) (0xe0 + (c >> 12));
-				buf[pos++] = (byte) (0x80 + ((c >> 6) & 0x3f));
-				buf[pos++] = (byte) (0x80 + (c & 0x3f));
+				buf[pos++] = (byte)(0xe0 + (c >> 12));
+				buf[pos++] = (byte)(0x80 + ((c >> 6) & 0x3f));
+				buf[pos++] = (byte)(0x80 + (c & 0x3f));
 			}
 		}
 		if (!noQuote)

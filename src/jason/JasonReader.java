@@ -15,8 +15,8 @@ import jason.Jason.Parser;
 import static jason.Jason.*;
 
 public final class JasonReader {
-	private static final @NonNull Double NEGATIVE_INFINITY = ensureNonNull(Double.valueOf(Double.NEGATIVE_INFINITY));
-	private static final @NonNull Double POSITIVE_INFINITY = ensureNonNull(Double.valueOf(Double.POSITIVE_INFINITY));
+	private static final @NonNull Double NEGATIVE_INFINITY = Double.NEGATIVE_INFINITY;
+	private static final @NonNull Double POSITIVE_INFINITY = Double.POSITIVE_INFINITY;
 
 	private static final byte[] ESCAPE = { // @formatter:off
 		//   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
@@ -86,7 +86,7 @@ public final class JasonReader {
 		String s = ss[idx];
 		if (s != null) {
 			if (BYTE_STRING) { // JDK9+
-				byte[] b = (byte[]) unsafe.getObject(s, STRING_VALUE_OFFSET);
+				byte[] b = (byte[])unsafe.getObject(s, STRING_VALUE_OFFSET);
 				if (b.length == len && Arrays.equals(b, 0, len, buf, pos, end))
 					return s;
 			} else { // for JDK8-
@@ -108,7 +108,7 @@ public final class JasonReader {
 	@SuppressWarnings({ "unchecked", "null" })
 	public static <T> @NonNull T allocObj(@NonNull ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		Constructor<T> ctor = classMeta.ctor;
-		return ctor != null ? ctor.newInstance((Object[]) null) : (T) unsafe.allocateInstance(classMeta.klass);
+		return ctor != null ? ctor.newInstance((Object[])null) : (T)unsafe.allocateInstance(classMeta.klass);
 	}
 
 	private byte[] buf; // only support utf-8 encoding
@@ -192,7 +192,7 @@ public final class JasonReader {
 
 	public @NonNull JasonReader trySkipBom() {
 		int p = pos;
-		if (p + 2 < buf.length && buf[p] == (byte) 0xef && buf[p + 1] == (byte) 0xbb && buf[p + 2] == (byte) 0xbf)
+		if (p + 2 < buf.length && buf[p] == (byte)0xef && buf[p + 1] == (byte)0xbb && buf[p + 2] == (byte)0xbf)
 			pos = p + 3;
 		return this;
 	}
@@ -377,7 +377,7 @@ public final class JasonReader {
 	}
 
 	public <T> @Nullable T parse(@Nullable T obj) throws ReflectiveOperationException {
-		return parse(obj, (ClassMeta<T>) null);
+		return parse(obj, (ClassMeta<T>)null);
 	}
 
 	public <T> @Nullable T parse(@Nullable T obj, @Nullable Class<? super T> klass)
@@ -391,19 +391,19 @@ public final class JasonReader {
 		if (classMeta == null) {
 			if (obj == null)
 				return null;
-			classMeta = getClassMeta((Class<T>) obj.getClass());
+			classMeta = getClassMeta((Class<T>)obj.getClass());
 		}
 		Parser<? super T> parser = classMeta.parser;
 		if (parser != null)
-			return (T) parser.parse0(this, classMeta, obj);
+			return (T)parser.parse0(this, classMeta, obj);
 		if (obj != null)
 			return parse0(obj, classMeta);
 		if (classMeta.isAbstract)
 			throw new InstantiationException("abstract class: " + classMeta.klass.getName());
-		return parse0((T) allocObj(classMeta), classMeta);
+		return parse0((T)allocObj(classMeta), classMeta);
 	}
 
-	public <T> @Nullable T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
+	public <T> @NonNull T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
 		if (next() != '{')
 			return obj;
 		for (int b = skipNext(); b != '}'; b = skipVar()) {
@@ -418,13 +418,13 @@ public final class JasonReader {
 				unsafe.putBoolean(obj, offset, b == 't');
 				break;
 			case TYPE_BYTE:
-				unsafe.putByte(obj, offset, (byte) parseInt());
+				unsafe.putByte(obj, offset, (byte)parseInt());
 				break;
 			case TYPE_SHORT:
-				unsafe.putShort(obj, offset, (short) parseInt());
+				unsafe.putShort(obj, offset, (short)parseInt());
 				break;
 			case TYPE_CHAR:
-				unsafe.putChar(obj, offset, (char) parseInt());
+				unsafe.putChar(obj, offset, (char)parseInt());
 				break;
 			case TYPE_INT:
 				unsafe.putInt(obj, offset, parseInt());
@@ -433,7 +433,7 @@ public final class JasonReader {
 				unsafe.putLong(obj, offset, parseLong());
 				break;
 			case TYPE_FLOAT:
-				unsafe.putFloat(obj, offset, (float) parseDouble());
+				unsafe.putFloat(obj, offset, (float)parseDouble());
 				break;
 			case TYPE_DOUBLE:
 				unsafe.putDouble(obj, offset, parseDouble());
@@ -445,7 +445,7 @@ public final class JasonReader {
 				unsafe.putObject(obj, offset, parse(unsafe.getObject(obj, offset), b));
 				break;
 			case TYPE_POS:
-				Pos p = (Pos) unsafe.getObject(obj, offset);
+				Pos p = (Pos)unsafe.getObject(obj, offset);
 				if (p == null)
 					unsafe.putObject(obj, offset, p = new Pos());
 				p.pos = pos;
@@ -470,8 +470,8 @@ public final class JasonReader {
 										+ ") for field: " + fm.getName() + " in " + classMeta.klass.getName());
 							unsafe.putObject(obj, offset, newSubObj);
 						}
-					} else if (parse0(subObj, subClassMeta) == null)
-						unsafe.putObject(obj, offset, null);
+					} else
+						parse0(subObj, subClassMeta);
 				} else {
 					ClassMeta<?> subClassMeta = fm.classMeta;
 					if (subClassMeta == null)
@@ -492,13 +492,13 @@ public final class JasonReader {
 				unsafe.putObject(obj, offset, b == 'n' ? null : b == 't');
 				break;
 			case TYPE_WRAP_FLAG + TYPE_BYTE:
-				unsafe.putObject(obj, offset, b == 'n' ? null : (byte) parseInt());
+				unsafe.putObject(obj, offset, b == 'n' ? null : (byte)parseInt());
 				break;
 			case TYPE_WRAP_FLAG + TYPE_SHORT:
-				unsafe.putObject(obj, offset, b == 'n' ? null : (short) parseInt());
+				unsafe.putObject(obj, offset, b == 'n' ? null : (short)parseInt());
 				break;
 			case TYPE_WRAP_FLAG + TYPE_CHAR:
-				unsafe.putObject(obj, offset, b == 'n' ? null : (char) parseInt());
+				unsafe.putObject(obj, offset, b == 'n' ? null : (char)parseInt());
 				break;
 			case TYPE_WRAP_FLAG + TYPE_INT:
 				unsafe.putObject(obj, offset, b == 'n' ? null : parseInt());
@@ -507,7 +507,7 @@ public final class JasonReader {
 				unsafe.putObject(obj, offset, b == 'n' ? null : parseLong());
 				break;
 			case TYPE_WRAP_FLAG + TYPE_FLOAT:
-				unsafe.putObject(obj, offset, b == 'n' ? null : (float) parseDouble());
+				unsafe.putObject(obj, offset, b == 'n' ? null : (float)parseDouble());
 				break;
 			case TYPE_WRAP_FLAG + TYPE_DOUBLE:
 				unsafe.putObject(obj, offset, b == 'n' ? null : parseDouble());
@@ -520,13 +520,13 @@ public final class JasonReader {
 						break;
 					}
 					@SuppressWarnings("unchecked")
-					Collection<Object> c = (Collection<Object>) unsafe.getObject(obj, offset);
+					Collection<Object> c = (Collection<Object>)unsafe.getObject(obj, offset);
 					if (c == null) {
 						Constructor<?> ctor = fm.ctor;
 						if (ctor != null) {
 							@SuppressWarnings("unchecked")
 							Collection<Object> c2 = ensureNonNull(
-									(Collection<Object>) ctor.newInstance((Object[]) null));
+									(Collection<Object>)ctor.newInstance((Object[])null));
 							unsafe.putObject(obj, offset, c = c2);
 						} else {
 							ClassMeta<?> cm = getClassMeta(fm.klass);
@@ -552,15 +552,15 @@ public final class JasonReader {
 						break;
 					case TYPE_BYTE:
 						for (; b != ']'; b = skipVar())
-							c.add(b == 'n' ? null : (byte) parseInt());
+							c.add(b == 'n' ? null : (byte)parseInt());
 						break;
 					case TYPE_SHORT:
 						for (; b != ']'; b = skipVar())
-							c.add(b == 'n' ? null : (short) parseInt());
+							c.add(b == 'n' ? null : (short)parseInt());
 						break;
 					case TYPE_CHAR:
 						for (; b != ']'; b = skipVar())
-							c.add(b == 'n' ? null : (char) parseInt());
+							c.add(b == 'n' ? null : (char)parseInt());
 						break;
 					case TYPE_INT:
 						for (; b != ']'; b = skipVar())
@@ -572,7 +572,7 @@ public final class JasonReader {
 						break;
 					case TYPE_FLOAT:
 						for (; b != ']'; b = skipVar())
-							c.add(b == 'n' ? null : (float) parseDouble());
+							c.add(b == 'n' ? null : (float)parseDouble());
 						break;
 					case TYPE_DOUBLE:
 						for (; b != ']'; b = skipVar())
@@ -614,13 +614,13 @@ public final class JasonReader {
 						break;
 					}
 					@SuppressWarnings("unchecked")
-					Map<Object, Object> m = (Map<Object, Object>) unsafe.getObject(obj, offset);
+					Map<Object, Object> m = (Map<Object, Object>)unsafe.getObject(obj, offset);
 					if (m == null) {
 						Constructor<?> ctor = fm.ctor;
 						if (ctor != null) {
 							@SuppressWarnings("unchecked")
 							Map<Object, Object> m2 = ensureNonNull(
-									(Map<Object, Object>) ctor.newInstance((Object[]) null));
+									(Map<Object, Object>)ctor.newInstance((Object[])null));
 							unsafe.putObject(obj, offset, m = m2);
 						} else {
 							ClassMeta<?> cm = getClassMeta(fm.klass);
@@ -650,19 +650,19 @@ public final class JasonReader {
 					case TYPE_BYTE:
 						for (; b != '}'; b = skipVar()) {
 							Object k = keyParser.parse(this, b);
-							m.put(k, skipColon() == 'n' ? null : (byte) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (byte)parseInt());
 						}
 						break;
 					case TYPE_SHORT:
 						for (; b != '}'; b = skipVar()) {
 							Object k = keyParser.parse(this, b);
-							m.put(k, skipColon() == 'n' ? null : (short) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (short)parseInt());
 						}
 						break;
 					case TYPE_CHAR:
 						for (; b != '}'; b = skipVar()) {
 							Object k = keyParser.parse(this, b);
-							m.put(k, skipColon() == 'n' ? null : (char) parseInt());
+							m.put(k, skipColon() == 'n' ? null : (char)parseInt());
 						}
 						break;
 					case TYPE_INT:
@@ -680,7 +680,7 @@ public final class JasonReader {
 					case TYPE_FLOAT:
 						for (; b != '}'; b = skipVar()) {
 							Object k = keyParser.parse(this, b);
-							m.put(k, skipColon() == 'n' ? null : (float) parseDouble());
+							m.put(k, skipColon() == 'n' ? null : (float)parseDouble());
 						}
 						break;
 					case TYPE_DOUBLE:
@@ -746,7 +746,8 @@ public final class JasonReader {
 			return 0;
 		if (b == '\\')
 			b = buf[pos++];
-		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
+		for (//noinspection UnnecessaryLocalVariable
+				int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if ((b = buf[pos++]) == '"')
 				return h;
 			if (b == '\\')
@@ -759,7 +760,8 @@ public final class JasonReader {
 			return 0;
 		if (b == '\\')
 			b = buf[++pos];
-		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
+		for (//noinspection UnnecessaryLocalVariable
+				int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
 				return h;
 			if (b == '/') // check comment
@@ -774,9 +776,8 @@ public final class JasonReader {
 		return b == '"' ? jr.parseString(true) : jr.parseStringNoQuot();
 	}
 
-	@Nullable
-	static Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {
-		Boolean v;
+	static @NonNull Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {
+		boolean v;
 		if (b == '"') {
 			v = jr.buf[++jr.pos] == 't';
 			jr.skipQuot();
@@ -785,8 +786,7 @@ public final class JasonReader {
 		return v;
 	}
 
-	@Nullable
-	static Byte parseByteKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Byte parseByteKey(@NonNull JasonReader jr, int b) {
 		int v;
 		if (b == '"') {
 			jr.pos++;
@@ -794,11 +794,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseInt();
-		return Byte.valueOf((byte) v);
+		return (byte)v;
 	}
 
-	@Nullable
-	static Short parseShortKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Short parseShortKey(@NonNull JasonReader jr, int b) {
 		int v;
 		if (b == '"') {
 			jr.pos++;
@@ -806,11 +805,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseInt();
-		return Short.valueOf((short) v);
+		return (short)v;
 	}
 
-	@Nullable
-	static Character parseCharKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Character parseCharKey(@NonNull JasonReader jr, int b) {
 		int v;
 		if (b == '"') {
 			jr.pos++;
@@ -818,11 +816,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseInt();
-		return Character.valueOf((char) v);
+		return (char)v;
 	}
 
-	@Nullable
-	static Integer parseIntegerKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Integer parseIntegerKey(@NonNull JasonReader jr, int b) {
 		int v;
 		if (b == '"') {
 			jr.pos++;
@@ -830,11 +827,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseInt();
-		return Integer.valueOf(v);
+		return v;
 	}
 
-	@Nullable
-	static Long parseLongKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Long parseLongKey(@NonNull JasonReader jr, int b) {
 		long v;
 		if (b == '"') {
 			jr.pos++;
@@ -842,11 +838,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseLong();
-		return Long.valueOf(v);
+		return v;
 	}
 
-	@Nullable
-	static Float parseFloatKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Float parseFloatKey(@NonNull JasonReader jr, int b) {
 		double v;
 		if (b == '"') {
 			jr.pos++;
@@ -854,11 +849,10 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseDouble();
-		return Float.valueOf((float) v);
+		return (float)v;
 	}
 
-	@Nullable
-	static Double parseDoubleKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Double parseDoubleKey(@NonNull JasonReader jr, int b) {
 		double v;
 		if (b == '"') {
 			jr.pos++;
@@ -866,7 +860,7 @@ public final class JasonReader {
 			jr.skipQuot();
 		} else
 			v = jr.parseDouble();
-		return Double.valueOf(v);
+		return v;
 	}
 
 	public byte[] parseByteString() {
@@ -908,18 +902,18 @@ public final class JasonReader {
 							+ parseHex(buffer[p + 3]);
 					p += 4;
 					if (b >= 0x800) {
-						t[n++] = (byte) (0xe0 + (b >> 12));
-						t[n++] = (byte) (0x80 + ((b >> 6) & 0x3f));
-						t[n++] = (byte) (0x80 + (b & 0x3f));
+						t[n++] = (byte)(0xe0 + (b >> 12));
+						t[n++] = (byte)(0x80 + ((b >> 6) & 0x3f));
+						t[n++] = (byte)(0x80 + (b & 0x3f));
 					} else if (b >= 0x80) {
-						t[n++] = (byte) (0xc0 + (b >> 6));
-						t[n++] = (byte) (0x80 + (b & 0x3f));
+						t[n++] = (byte)(0xc0 + (b >> 6));
+						t[n++] = (byte)(0x80 + (b & 0x3f));
 					} else
-						t[n++] = (byte) b;
+						t[n++] = (byte)b;
 				} else
-					t[n++] = b >= 0x20 ? ESCAPE[b - 0x20] : (byte) (b & 0xff);
+					t[n++] = b >= 0x20 ? ESCAPE[b - 0x20] : (byte)(b & 0xff);
 			} else
-				t[n++] = (byte) b;
+				t[n++] = (byte)b;
 		}
 	}
 
@@ -954,7 +948,7 @@ public final class JasonReader {
 			tmp = t = new char[len];
 		p = begin;
 		for (int i = 0; i < n;)
-			t[i++] = (char) (buffer[p++] & 0xff);
+			t[i++] = (char)(buffer[p++] & 0xff);
 		for (;;) {
 			if ((b = buffer[p++]) == '"') {
 				pos = p;
@@ -962,24 +956,24 @@ public final class JasonReader {
 			}
 			if (b == '\\') {
 				if ((b = buffer[p++]) == 'u') {
-					t[n++] = (char) ((parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8)
+					t[n++] = (char)((parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8)
 							+ (parseHex(buffer[p + 2]) << 4) + parseHex(buffer[p + 3]));
 					p += 4;
 				} else
-					t[n++] = (char) (b >= 0x20 ? ESCAPE[b - 0x20] : b & 0xff);
+					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b & 0xff);
 			} else if (b >= 0)
-				t[n++] = (char) b;
+				t[n++] = (char)b;
 			else if (b >= -0x20) {
 				if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
-					t[n++] = (char) (((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
+					t[n++] = (char)(((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
 					p += 2;
 				} else
-					t[n++] = (char) (b & 0xff); // ignore malformed utf-8
+					t[n++] = (char)(b & 0xff); // ignore malformed utf-8
 			} else if ((c = buffer[p]) < -0x40) {
 				p++;
-				t[n++] = (char) (((b & 0x1f) << 6) + (c & 0x3f));
+				t[n++] = (char)(((b & 0x1f) << 6) + (c & 0x3f));
 			} else
-				t[n++] = (char) (b & 0xff); // ignore malformed utf-8
+				t[n++] = (char)(b & 0xff); // ignore malformed utf-8
 		}
 	}
 
@@ -1002,7 +996,7 @@ public final class JasonReader {
 			tmp = t = new char[len];
 		p = begin;
 		for (int i = 0; i < n;)
-			t[i++] = (char) (buffer[p++] & 0xff);
+			t[i++] = (char)(buffer[p++] & 0xff);
 		for (;;) {
 			if ((((b = buffer[p++] & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) { // (b & 0xff) <= ' ' || b == ':'
 				pos = p;
@@ -1010,24 +1004,24 @@ public final class JasonReader {
 			}
 			if (b == '\\') {
 				if ((b = buffer[p++]) == 'u') {
-					t[n++] = (char) ((parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8)
+					t[n++] = (char)((parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8)
 							+ (parseHex(buffer[p + 2]) << 4) + parseHex(buffer[p + 3]));
 					p += 4;
 				} else
-					t[n++] = (char) (b >= 0x20 ? ESCAPE[b - 0x20] : b);
+					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b);
 			} else if (b < 0x80)
-				t[n++] = (char) b;
+				t[n++] = (char)b;
 			else if (b > 0xdf) {
 				if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
-					t[n++] = (char) (((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
+					t[n++] = (char)(((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
 					p += 2;
 				} else
-					t[n++] = (char) b; // ignore malformed utf-8
+					t[n++] = (char)b; // ignore malformed utf-8
 			} else if ((c = buffer[p]) < -0x40) {
 				p++;
-				t[n++] = (char) (((b & 0x1f) << 6) + (c & 0x3f));
+				t[n++] = (char)(((b & 0x1f) << 6) + (c & 0x3f));
 			} else
-				t[n++] = (char) b; // ignore malformed utf-8
+				t[n++] = (char)b; // ignore malformed utf-8
 		}
 	}
 
@@ -1115,17 +1109,18 @@ public final class JasonReader {
 					}
 				}
 			}
-		} catch (IndexOutOfBoundsException __) {
+		} catch (IndexOutOfBoundsException ignored) {
 		}
 		pos = p;
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
+			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
 			d = exp < -308 ? strtod(strtod(d, -308), exp + 308) : strtod(d, exp);
-			i = (int) (minus ? -d : d);
+			i = (int)(minus ? -d : d);
 		} else if (minus)
 			i = -i;
 		return i;
@@ -1212,17 +1207,18 @@ public final class JasonReader {
 					}
 				}
 			}
-		} catch (IndexOutOfBoundsException __) {
+		} catch (IndexOutOfBoundsException ignored) {
 		}
 		pos = p;
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
+			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
 			d = exp < -308 ? strtod(strtod(d, -308), exp + 308) : strtod(d, exp);
-			i = (long) (minus ? -d : d);
+			i = (long)(minus ? -d : d);
 		} else if (minus)
 			i = -i;
 		return i;
@@ -1309,12 +1305,13 @@ public final class JasonReader {
 					}
 				}
 			}
-		} catch (IndexOutOfBoundsException __) {
+		} catch (IndexOutOfBoundsException ignored) {
 		}
 		pos = p;
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
+			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
@@ -1407,12 +1404,13 @@ public final class JasonReader {
 					}
 				}
 			}
-		} catch (IndexOutOfBoundsException __) {
+		} catch (IndexOutOfBoundsException ignored) {
 		}
 		pos = p;
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
+			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
@@ -1421,7 +1419,8 @@ public final class JasonReader {
 		}
 		if (minus)
 			i = -i;
-		final int j = (int) i;
-		return j == i ? (Object) j : i;
+		final int j = (int)i;
+		//noinspection RedundantCast
+		return j == i ? (Object)j : i;
 	}
 }

@@ -67,7 +67,7 @@ public final class Jason {
 		@SuppressWarnings("unchecked")
 		default @Nullable T parse0(@NonNull JasonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj)
 				throws ReflectiveOperationException {
-			return parse(reader, (ClassMeta<T>) classMeta, (T) obj);
+			return parse(reader, (ClassMeta<T>)classMeta, (T)obj);
 		}
 	}
 
@@ -76,7 +76,7 @@ public final class Jason {
 
 		@SuppressWarnings("unchecked")
 		default void write0(@NonNull JasonWriter writer, @NonNull ClassMeta<?> classMeta, @Nullable Object obj) {
-			write(writer, (ClassMeta<T>) classMeta, (T) obj);
+			write(writer, (ClassMeta<T>)classMeta, (T)obj);
 		}
 	}
 
@@ -144,8 +144,8 @@ public final class Jason {
 				if (c.getParameterCount() == 0) {
 					try {
 						setAccessible(c);
-						return (Constructor<T>) c;
-					} catch (Exception e) {
+						return (Constructor<T>)c;
+					} catch (Exception ignored) {
 					}
 				}
 			}
@@ -154,16 +154,16 @@ public final class Jason {
 
 		private static Class<?> getCollectionSubClass(Type geneType) { // X<T>, X extends Y<T>, X implements Y<T>
 			if (geneType instanceof ParameterizedType) {
-				ParameterizedType paraType = (ParameterizedType) geneType;
-				Class<?> rawClass = (Class<?>) paraType.getRawType();
+				ParameterizedType paraType = (ParameterizedType)geneType;
+				Class<?> rawClass = (Class<?>)paraType.getRawType();
 				if (Collection.class.isAssignableFrom(rawClass)) {
 					Type type = paraType.getActualTypeArguments()[0];
 					if (type instanceof Class)
-						return (Class<?>) type;
+						return (Class<?>)type;
 				}
 			}
 			if (geneType instanceof Class) {
-				Class<?> klass = (Class<?>) geneType;
+				Class<?> klass = (Class<?>)geneType;
 				for (Type subType : klass.getGenericInterfaces()) {
 					Class<?> subClass = getCollectionSubClass(subType);
 					if (subClass != null)
@@ -176,15 +176,15 @@ public final class Jason {
 
 		private static Type[] getMapSubClasses(Type geneType) { // X<K,V>, X extends Y<K,V>, X implements Y<K,V>
 			if (geneType instanceof ParameterizedType) {
-				ParameterizedType paraType = (ParameterizedType) geneType;
-				if (Map.class.isAssignableFrom((Class<?>) paraType.getRawType())) {
+				ParameterizedType paraType = (ParameterizedType)geneType;
+				if (Map.class.isAssignableFrom((Class<?>)paraType.getRawType())) {
 					Type[] subTypes = paraType.getActualTypeArguments();
 					if (subTypes.length == 2 && subTypes[0] instanceof Class && subTypes[1] instanceof Class)
 						return subTypes;
 				}
 			}
 			if (geneType instanceof Class) {
-				Class<?> klass = (Class<?>) geneType;
+				Class<?> klass = (Class<?>)geneType;
 				for (Type subType : klass.getGenericInterfaces()) {
 					Type[] subTypes = getMapSubClasses(subType);
 					if (subTypes != null)
@@ -218,7 +218,7 @@ public final class Jason {
 					Constructor<?> fieldCtor = null;
 					KeyReader keyReader = null;
 					Integer v = typeMap.get(fieldClass);
-					int type = 0;
+					int type;
 					if (v != null)
 						type = v;
 					else if (Collection.class.isAssignableFrom(fieldClass)) { // Collection<?>
@@ -251,7 +251,7 @@ public final class Jason {
 							fieldCtor = getDefCtor(TreeMap.class);
 						Type[] subTypes = getMapSubClasses(field.getGenericType());
 						if (subTypes != null) {
-							v = typeMap.get(fieldClass = ensureNonNull((Class<?>) subTypes[1]));
+							v = typeMap.get(fieldClass = ensureNonNull((Class<?>)subTypes[1]));
 							type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 							keyReader = keyReaderMap.get(subTypes[0]);
 							if (keyReader == null)
@@ -263,10 +263,10 @@ public final class Jason {
 					} else
 						type = TYPE_CUSTOM;
 					long offset = getUnsafe().objectFieldOffset(field);
-					if (offset != (int) offset)
+					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ field.getName() + " in " + klass.getName());
-					put(j++, new FieldMeta(type, (int) offset, ensureNonNull(field.getName()), fieldClass, fieldCtor,
+					put(j++, new FieldMeta(type, (int)offset, ensureNonNull(field.getName()), fieldClass, fieldCtor,
 							keyReader));
 				}
 			}
@@ -288,7 +288,7 @@ public final class Jason {
 		@SuppressWarnings("unchecked")
 		@Deprecated
 		public void setParserUnsafe(@Nullable Parser<?> p) { // DANGEROUS! only for special purpose
-			parser = (Parser<T>) p;
+			parser = (Parser<T>)p;
 		}
 
 		public @Nullable Writer<T> getWriter() {
@@ -335,22 +335,23 @@ public final class Jason {
 	static final long STRING_VALUE_OFFSET;
 	static final boolean BYTE_STRING;
 	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
-	static final int keyHashMultiplier = 0x100_0193; //NOSONAR 1677_7619 can be changed to another prime number
+	static final int keyHashMultiplier = 0x100_0193; // 1677_7619 can be changed to another prime number
 
 	static {
 		try {
 			Field theUnsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 			theUnsafeField.setAccessible(true);
-			unsafe = ensureNonNull((Unsafe) theUnsafeField.get(null));
+			unsafe = ensureNonNull((Unsafe)theUnsafeField.get(null));
 			// suppress "An illegal reflective access operation has occurred" in JDK9+
 			if (!System.getProperty("java.version").startsWith("1.") && !Jason.class.getModule().isNamed())
 				Class.class.getModule().addOpens(Class.class.getPackageName(), Jason.class.getModule());
 			Method getDeclaredFields0Method = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
 			getDeclaredFields0Method.setAccessible(true);
 			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(getDeclaredFields0Method));
-			OVERRIDE_OFFSET = unsafe.objectFieldOffset(getDeclaredField(AccessibleObject.class, "override"));
+			OVERRIDE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(
+					getDeclaredField(AccessibleObject.class, "override")));
 			Field valueField = getDeclaredField(String.class, "value");
-			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(valueField);
+			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(valueField));
 			BYTE_STRING = valueField.getType() == byte[].class;
 		} catch (ReflectiveOperationException e) {
 			throw new RuntimeException(e);
@@ -359,7 +360,7 @@ public final class Jason {
 
 	static Field[] getDeclaredFields(Class<?> klass) {
 		try {
-			return (Field[]) getDeclaredFields0MH.invokeExact(klass, false);
+			return (Field[])getDeclaredFields0MH.invokeExact(klass, false);
 		} catch (Throwable e) {
 			throw new RuntimeException(e);
 		}
@@ -378,7 +379,8 @@ public final class Jason {
 
 	@SuppressWarnings("null")
 	public static <T> @NonNull T ensureNonNull(@Nullable T obj) {
-		return obj; //NOSONAR
+		assert obj != null;
+		return obj;
 	}
 
 	public static @NonNull Unsafe getUnsafe() {
@@ -387,7 +389,7 @@ public final class Jason {
 
 	@SuppressWarnings({ "unchecked", "null" })
 	public static <T> @NonNull ClassMeta<T> getClassMeta(@NonNull Class<T> klass) {
-		return (ClassMeta<T>) classMetas.computeIfAbsent(klass, ClassMeta::new);
+		return (ClassMeta<T>)classMetas.computeIfAbsent(klass, ClassMeta::new);
 	}
 
 	public static void clearClassMetas() {
@@ -401,6 +403,7 @@ public final class Jason {
 	public static int getKeyHash(byte[] buf, int pos, int end) {
 		if (pos >= end)
 			return 0;
+		//noinspection UnnecessaryLocalVariable
 		int h = buf[pos], m = keyHashMultiplier;
 		while (++pos < end)
 			h = h * m + buf[pos];
@@ -412,7 +415,7 @@ public final class Jason {
 			return new String(buf, pos, end - pos, StandardCharsets.ISO_8859_1);
 		@SuppressWarnings("null")
 		@NonNull
-		String str = (String) unsafe.allocateInstance(String.class);
+		String str = (String)unsafe.allocateInstance(String.class);
 		unsafe.putObject(str, STRING_VALUE_OFFSET, Arrays.copyOfRange(buf, pos, end)); // for JDK9+
 		return str;
 	}

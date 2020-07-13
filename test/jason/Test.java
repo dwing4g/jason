@@ -139,6 +139,7 @@ public final class Test {
 	public static void test10() throws ReflectiveOperationException {
 		G g = JasonReader.local().buf("{\"set1\":[123,456],\"set2\":[789],\"set3\":[],\"e1\":{\"1\":[]},\"f2\":[222]}")
 				.parse(G.class);
+		assert g != null;
 		if (g.set1.getClass() != HashSet.class)
 			throw new RuntimeException();
 		if (g.set2 == null || g.set2.getClass() != HashSet.class)
