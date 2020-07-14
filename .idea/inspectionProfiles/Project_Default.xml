@@ -6,9 +6,6 @@
       <option name="processLiterals" value="true" />
       <option name="processComments" value="true" />
     </inspection_tool>
-    <inspection_tool class="UnusedReturnValue" enabled="true" level="WARNING" enabled_by_default="true">
-      <option name="highestModifier" value="protected" />
-    </inspection_tool>
     <inspection_tool class="unused" enabled="true" level="WARNING" enabled_by_default="true" klass="packageLocal" inner_class="private" field="private" method="private">
       <option name="LOCAL_VARIABLE" value="true" />
       <option name="FIELD" value="true" />

@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="lib">
-    <CLASSES>
-      <root url="jar://$PROJECT_DIR$/lib/org.eclipse.jdt.annotation_2.2.400.v20191120-1313.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
