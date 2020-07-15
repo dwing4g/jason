@@ -736,6 +736,7 @@ public final class JasonReader {
 		return obj;
 	}
 
+	@SuppressWarnings("UnnecessaryLocalVariable")
 	int parseKeyHash() {
 		pos++; // skip the first '"'
 		int b = buf[pos++];
@@ -743,8 +744,7 @@ public final class JasonReader {
 			return 0;
 		if (b == '\\')
 			b = buf[pos++];
-		for (//noinspection UnnecessaryLocalVariable
-				int h = b, m = keyHashMultiplier;; h = h * m + b) {
+		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if ((b = buf[pos++]) == '"')
 				return h;
 			if (b == '\\')
@@ -757,7 +757,7 @@ public final class JasonReader {
 			return 0;
 		if (b == '\\')
 			b = buf[++pos];
-		for (//noinspection UnnecessaryLocalVariable
+		for ( //noinspection UnnecessaryLocalVariable
 				int h = b, m = keyHashMultiplier;; h = h * m + b) {
 			if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
 				return h;

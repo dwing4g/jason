@@ -29,7 +29,8 @@ public final class Jason {
 	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12> (parser only needs clear() & put(k,v))
 
 	interface KeyReader {
-		@NonNull Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
+		@NonNull
+		Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
 	}
 
 	static final class FieldMeta {
