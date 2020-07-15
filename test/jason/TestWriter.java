@@ -35,7 +35,7 @@ public class TestWriter {
 
 	static void testLong(long d) {
 		if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE)
-			testInt((int) d);
+			testInt((int)d);
 		jw.free().ensure(20);
 		jw.write(d);
 		String ss = jw.toString();
@@ -50,7 +50,7 @@ public class TestWriter {
 
 	static void testLong(long d, String s) {
 		if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE)
-			testInt((int) d);
+			testInt((int)d);
 		jw.free().ensure(20);
 		jw.write(d);
 		String ss = jw.toString();

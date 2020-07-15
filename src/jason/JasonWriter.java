@@ -99,8 +99,8 @@ public final class JasonWriter {
 
 	public static class Block {
 		public byte[] buf;
-		public int len;
-		Block next;
+		public int len; // current len of buf for non-tail
+		Block next; // always non-null
 	}
 
 	private static final @NonNull ThreadLocal<JasonWriter> localWriters = ensureNonNull(
@@ -115,12 +115,12 @@ public final class JasonWriter {
 	}
 
 	private final @NonNull BlockAllocator allocator;
-	private @NonNull Block tail;
-	private byte[] buf;
-	private int pos;
-	private int size; // sum of all blocks len except tail
-	private int flags = 0x10_0000;
-	private int tabs;
+	private @NonNull Block tail; // the last block of circular linked list; head = tail.next
+	private byte[] buf; // tail.buf
+	private int pos; // current pos of buf
+	private int size; // sum of len in all blocks except tail
+	private int flags = 0x10_0000; // (depth=16) << 16
+	private int tabs; // current depth
 
 	public JasonWriter() {
 		this(null);
@@ -195,9 +195,9 @@ public final class JasonWriter {
 		return this;
 	}
 
-	public @NonNull JasonWriter clear() { // left the empty head block
+	public @NonNull JasonWriter clear() { // leave the empty head block
 		Block head = ensureNonNull(tail.next);
-		for (Block block = head; block != tail; block = block.next)
+		for (Block block = head.next; block != head; block = block.next)
 			allocator.free(ensureNonNull(block));
 		tail = head;
 		head.next = head;
@@ -209,7 +209,7 @@ public final class JasonWriter {
 	}
 
 	@SuppressWarnings("null")
-	public @NonNull JasonWriter free() {
+	public @NonNull JasonWriter free() { // can be reused by ensure()
 		for (Block block = tail.next;; block = block.next) {
 			allocator.free(ensureNonNull(block));
 			if (block == tail)
@@ -259,15 +259,20 @@ public final class JasonWriter {
 		}
 	}
 
+	@SuppressWarnings({ "null", "unused" })
 	void appendBlock(int len) {
 		Block block = allocator.alloc(len);
-		block.next = tail.next;
-		tail.next = block;
-		tail.len = pos;
+		//noinspection ConstantConditions
+		if (tail != null) {
+			block.next = tail.next;
+			tail.next = block;
+			tail.len = pos;
+			size += pos;
+			pos = 0;
+		} else
+			block.next = block;
 		tail = block;
 		buf = block.buf;
-		size += pos;
-		pos = 0;
 	}
 
 	public void ensure(int len) {
