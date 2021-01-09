@@ -4,6 +4,7 @@ import java.net.Inet4Address;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -33,7 +34,7 @@ public final class Test {
 		C c = JasonReader.local().buf("{a:{a:1,b:2}}").parse(C.class);
 		if (c == null)
 			throw new RuntimeException();
-		System.out.println(c.a.getClass() == B.class && c.a.a == 1 && ((B) c.a).b == 2);
+		System.out.println(c.a.getClass() == B.class && c.a.a == 1 && ((B)c.a).b == 2);
 
 		c.a = new A();
 		c = JasonReader.local().buf("{a:{a:3,b:4}}").parse(c);
@@ -52,34 +53,34 @@ public final class Test {
 		c = JasonReader.local().buf("{a:{a:7,b:8}}").parse(c);
 		if (c == null)
 			throw new RuntimeException();
-		System.out.println(c.a.getClass() == B.class && c.a.a == 7 && ((B) c.a).b == 8);
+		System.out.println(c.a.getClass() == B.class && c.a.a == 7 && ((B)c.a).b == 8);
 	}
 
 	public static void test3() {
 		C c = new C();
 		c.a.a = 1;
-		((B) c.a).b = -1;
+		((B)c.a).b = -1;
 		System.out.println(JasonWriter.local().clear().write(c).toString());
 	}
 
 	public static void test4() {
 		C c = new C();
 		c.a.a = 1;
-		((B) c.a).b = -1;
+		((B)c.a).b = -1;
 		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_PRETTY_FORMAT).write(c).toString());
 	}
 
 	public static void test5() {
 		C c = new C();
 		c.a.a = 1;
-		((B) c.a).b = -1;
+		((B)c.a).b = -1;
 		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_NO_QUOTE_KEY).write(c).toString());
 	}
 
 	public static void test6() {
 		C c = new C();
 		c.a.a = 1;
-		((B) c.a).b = -1;
+		((B)c.a).b = -1;
 		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_WRITE_NULL).write(c).toString());
 	}
 
@@ -120,7 +121,7 @@ public final class Test {
 		int f;
 	}
 
-	@SuppressWarnings("serial")
+	@SuppressWarnings({ "serial", "RedundantSuppression" })
 	static class F2 extends ArrayList<Object> {
 		private F2() {
 		}
@@ -146,8 +147,27 @@ public final class Test {
 			throw new RuntimeException();
 		if (g.set3 == null || g.set3.getClass() != HashSet.class)
 			throw new RuntimeException();
-		if (((Number) g.f2.get(0)).intValue() != 222)
+		if (((Number)g.f2.get(0)).intValue() != 222)
 			throw new RuntimeException();
+	}
+
+	public static void test11() {
+		int[] a = new int[] { 1, 2, 3 };
+		String[] b = new String[] { "a", "b", "c" };
+		List<Integer> c = List.of(1, 2, 3);
+		List<String> d = List.of(b);
+		Map<Integer, String> e = Map.of(1, "a", 2, "b", 3, "c");
+		System.out.println(JasonWriter.local().clear().write(a).toString());
+		System.out.println(JasonWriter.local().clear().write(b).toString());
+		System.out.println(JasonWriter.local().clear().write(c).toString());
+		System.out.println(JasonWriter.local().clear().write(d).toString());
+		System.out.println(JasonWriter.local().clear().write(e).toString());
+		JasonWriter.local().setPrettyFormat(true).setWrapElement(true);
+		System.out.println(JasonWriter.local().clear().write(a).toString());
+		System.out.println(JasonWriter.local().clear().write(b).toString());
+		System.out.println(JasonWriter.local().clear().write(c).toString());
+		System.out.println(JasonWriter.local().clear().write(d).toString());
+		System.out.println(JasonWriter.local().clear().write(e).toString());
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {
@@ -161,5 +181,6 @@ public final class Test {
 		test8();
 		test9();
 		test10();
+		test11();
 	}
 }

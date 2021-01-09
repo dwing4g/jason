@@ -23,7 +23,9 @@ public final class JasonWriter {
 	public static final int FLAG_PRETTY_FORMAT = 0x1;
 	public static final int FLAG_NO_QUOTE_KEY  = 0x2;
 	public static final int FLAG_WRITE_NULL    = 0x4;
-	public static final int FLAG_ALL           = 0x7;
+	public static final int FLAG_WRAP_ELEMENT  = 0x8; // need FLAG_PRETTY_FORMAT
+	public static final int FLAG_ALL           = 0xf;
+	public static final int FLAG_PRETTY_FORMAT_AND_WRAP_ELEMENT = FLAG_PRETTY_FORMAT | FLAG_WRAP_ELEMENT;
 	//@formatter:on
 
 	private static final byte[] DIGITES_LUT = { // [200]
@@ -195,6 +197,18 @@ public final class JasonWriter {
 		return this;
 	}
 
+	public boolean isWrapElement() {
+		return (flags & FLAG_WRAP_ELEMENT) != 0;
+	}
+
+	public @NonNull JasonWriter setWrapElement(boolean enable) {
+		if (enable)
+			flags |= FLAG_WRAP_ELEMENT;
+		else
+			flags &= ~FLAG_WRAP_ELEMENT;
+		return this;
+	}
+
 	public @NonNull JasonWriter clear() { // leave the empty head block
 		Block head = ensureNonNull(tail.next);
 		for (Block block = head.next; block != head; block = block.next)
@@ -310,6 +324,7 @@ public final class JasonWriter {
 			return this;
 		}
 		boolean noQuote = (flags & FLAG_NO_QUOTE_KEY) != 0;
+		boolean wrapArray = (flags & FLAG_PRETTY_FORMAT_AND_WRAP_ELEMENT) == FLAG_PRETTY_FORMAT_AND_WRAP_ELEMENT;
 		Class<?> klass = obj.getClass();
 		switch (ClassMeta.getType(klass)) {
 		case TYPE_WRAP_FLAG + TYPE_BOOLEAN:
@@ -387,11 +402,25 @@ public final class JasonWriter {
 			if (obj instanceof Collection) {
 				ensure(1);
 				buf[pos++] = '[';
-				for (Object o : (Collection<?>)obj) {
+				if (wrapArray) {
+					tabs++;
+					for (Object o : (Collection<?>)obj) {
+						if (comma)
+							buf[pos++] = ',';
+						writeNewLineTabs();
+						write(o);
+						comma = true;
+					}
+					tabs--;
 					if (comma)
-						buf[pos++] = ',';
-					write(o);
-					comma = true;
+						writeNewLineTabs();
+				} else {
+					for (Object o : (Collection<?>)obj) {
+						if (comma)
+							buf[pos++] = ',';
+						write(o);
+						comma = true;
+					}
 				}
 				ensure(2);
 				buf[pos++] = ']';
@@ -400,11 +429,25 @@ public final class JasonWriter {
 			if (klass.isArray()) {
 				ensure(1);
 				buf[pos++] = '[';
-				for (int i = 0, n = Array.getLength(obj); i < n; i++) {
+				if (wrapArray) {
+					tabs++;
+					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
+						if (comma)
+							buf[pos++] = ',';
+						writeNewLineTabs();
+						write(Array.get(obj, i));
+						comma = true;
+					}
+					tabs--;
 					if (comma)
-						buf[pos++] = ',';
-					write(Array.get(obj, i));
-					comma = true;
+						writeNewLineTabs();
+				} else {
+					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
+						if (comma)
+							buf[pos++] = ',';
+						write(Array.get(obj, i));
+						comma = true;
+					}
 				}
 				ensure(2);
 				buf[pos++] = ']';
@@ -753,7 +796,7 @@ public final class JasonWriter {
 			} //@formatter:on
 			if ((v | len) != 0)
 				buf[pos + len++] = (byte)('0' + v);
-		} while (Long.compareUnsigned((tmp = (p1 << e) + p2), delta) > 0 && --kappa > 0);
+		} while (Long.compareUnsigned((tmp = ((long)p1 << e) + p2), delta) > 0 && --kappa > 0);
 		if (kappa != 0) {
 			kk += --kappa;
 			grisuRound(len, delta, tmp, (long)POW10[kappa] << e, pf);

@@ -21,10 +21,10 @@ public final class TestStringParser {
 			if (!s.equals(chks[j])) {
 				System.err.println("ERROR! j=" + j + ':');
 				for (int i = 0; i < s.length(); i++)
-					System.out.format(" %4X", (int) s.charAt(i));
+					System.out.format(" %4X", (int)s.charAt(i));
 				System.out.println();
 				for (int i = 0; i < chks[j].length(); i++)
-					System.out.format(" %4X", (int) chks[j].charAt(i));
+					System.out.format(" %4X", (int)chks[j].charAt(i));
 				System.out.println();
 				return;
 			}

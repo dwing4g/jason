@@ -1417,7 +1417,6 @@ public final class JasonReader {
 		if (minus)
 			i = -i;
 		final int j = (int)i;
-		//noinspection RedundantCast
 		return j == i ? (Object)j : i;
 	}
 }
