@@ -216,6 +216,9 @@ public final class Jason {
 				for (Field field : getDeclaredFields(c)) {
 					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) != 0)
 						continue;
+					final String fieldName = field.getName();
+					if (fieldName.startsWith("this$")) // closure field
+						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
 					Constructor<?> fieldCtor = null;
 					KeyReader keyReader = null;
@@ -267,8 +270,8 @@ public final class Jason {
 					long offset = getUnsafe().objectFieldOffset(field);
 					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
-								+ field.getName() + " in " + klass.getName());
-					put(j++, new FieldMeta(type, (int)offset, ensureNonNull(field.getName()), fieldClass, fieldCtor,
+								+ fieldName + " in " + klass.getName());
+					put(j++, new FieldMeta(type, (int)offset, ensureNonNull(fieldName), fieldClass, fieldCtor,
 							keyReader));
 				}
 			}
