@@ -350,8 +350,10 @@ public final class Jason {
 			theUnsafeField.setAccessible(true);
 			unsafe = ensureNonNull((Unsafe)theUnsafeField.get(null));
 			// suppress "An illegal reflective access operation has occurred" in JDK9+
-			if (!System.getProperty("java.version").startsWith("1.") && !Jason.class.getModule().isNamed())
+			if (!System.getProperty("java.version").startsWith("1.") && !Jason.class.getModule().isNamed()) {
+				// for JDK16+, addOpens needs JVM argument: --illegal-access=permit
 				Class.class.getModule().addOpens(Class.class.getPackageName(), Jason.class.getModule());
+			}
 			Method getDeclaredFields0Method = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
 			getDeclaredFields0Method.setAccessible(true);
 			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(getDeclaredFields0Method));
