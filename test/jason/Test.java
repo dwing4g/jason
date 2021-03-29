@@ -2,11 +2,13 @@ package jason;
 
 import java.net.Inet4Address;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 public final class Test {
 	static class A {
@@ -86,6 +88,7 @@ public final class Test {
 
 	public static void test7() {
 		System.out.println(System.getProperty("java.version"));
+		System.out.println(System.getProperty("java.version").replaceFirst("^1\\.", "").replaceFirst("\\D.*", ""));
 		System.out.println(Jason.getClassMeta(Inet4Address.class));
 	}
 
@@ -154,9 +157,14 @@ public final class Test {
 	public static void test11() {
 		int[] a = new int[] { 1, 2, 3 };
 		String[] b = new String[] { "a", "b", "c" };
-		List<Integer> c = List.of(1, 2, 3);
-		List<String> d = List.of(b);
-		Map<Integer, String> e = Map.of(1, "a", 2, "b", 3, "c");
+		List<Integer> c = new ArrayList<>();
+		Collections.addAll(c, 1, 2, 3);
+		List<String> d = new ArrayList<>();
+		Collections.addAll(d, b);
+		Map<Integer, String> e = new TreeMap<>();
+		e.put(1, "a");
+		e.put(2, "b");
+		e.put(3, "c");
 		System.out.println(JasonWriter.local().clear().write(a).toString());
 		System.out.println(JasonWriter.local().clear().write(b).toString());
 		System.out.println(JasonWriter.local().clear().write(c).toString());

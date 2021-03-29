@@ -349,16 +349,21 @@ public final class Jason {
 			Field theUnsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
 			theUnsafeField.setAccessible(true);
 			unsafe = ensureNonNull((Unsafe)theUnsafeField.get(null));
-			// suppress "An illegal reflective access operation has occurred" in JDK9+
-			if (!System.getProperty("java.version").startsWith("1.") && !Jason.class.getModule().isNamed()) {
-				// for JDK16+, addOpens needs JVM argument: --illegal-access=permit
-				Class.class.getModule().addOpens(Class.class.getPackageName(), Jason.class.getModule());
+			for (long i = 8; ; i++) {
+				theUnsafeField.setAccessible(true);
+				if (unsafe.getBoolean(theUnsafeField, i)) {
+					theUnsafeField.setAccessible(false);
+					if (!unsafe.getBoolean(theUnsafeField, i)) {
+						OVERRIDE_OFFSET = i;
+						break;
+					}
+				}
+				if (i == 32)
+					throw new UnsupportedOperationException(System.getProperty("java.version"));
 			}
 			Method getDeclaredFields0Method = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
-			getDeclaredFields0Method.setAccessible(true);
+			setAccessible(getDeclaredFields0Method);
 			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(getDeclaredFields0Method));
-			OVERRIDE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(
-					getDeclaredField(AccessibleObject.class, "override")));
 			Field valueField = getDeclaredField(String.class, "value");
 			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(valueField));
 			BYTE_STRING = valueField.getType() == byte[].class;
