@@ -267,7 +267,7 @@ public final class Jason {
 						}
 					} else
 						type = TYPE_CUSTOM;
-					long offset = getUnsafe().objectFieldOffset(field);
+					long offset = unsafe.objectFieldOffset(field);
 					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ fieldName + " in " + klass.getName());
@@ -380,6 +380,7 @@ public final class Jason {
 		}
 	}
 
+	@SuppressWarnings("SameParameterValue")
 	static @Nullable Field getDeclaredField(Class<?> klass, String fieldName) {
 		for (Field field : getDeclaredFields(klass))
 			if (field.getName().equals(fieldName))

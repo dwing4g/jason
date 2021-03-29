@@ -688,11 +688,11 @@ public final class JasonWriter {
 		b &= 0x7FFF_FFFF_FFFF_FFFFL;
 		long ab0, ab1;
 		if (a >= 0) {
-			ab0 = (((a * b) >>> 63) + (a & 1) + 1) >> 1;
+			ab0 = (((a * b) >>> 63) + (a & 1)) >> 1;
 			ab1 = Math.multiplyHigh(a, b) + (a >> 1);
 		} else {
 			a &= 0x7FFF_FFFF_FFFF_FFFFL;
-			ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1) + 1) >> 1;
+			ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1)) >> 1;
 			ab1 = Math.multiplyHigh(a, b) + (a >> 1) + (b >> 1) + (1L << 62);
 		}
 		return ab0 + ab1;
@@ -701,7 +701,7 @@ public final class JasonWriter {
 	static long umulHigh2(long a, long b) { // a < 0 && b < 0
 		a &= 0x7FFF_FFFF_FFFF_FFFFL;
 		b &= 0x7FFF_FFFF_FFFF_FFFFL;
-		long ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1) + 1) >> 1;
+		long ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1)) >> 1;
 		long ab1 = Math.multiplyHigh(a, b) + (a >> 1) + (b >> 1) + (1L << 62);
 		return ab0 + ab1;
 	}
