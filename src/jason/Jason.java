@@ -45,7 +45,7 @@ public final class Jason {
 		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
 
 		FieldMeta(int type, int offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Constructor<?> ctor,
-				@Nullable KeyReader keyReader) {
+				  @Nullable KeyReader keyReader) {
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.hash = getKeyHash(this.name, 0, this.name.length);
 			this.type = type;
@@ -322,7 +322,7 @@ public final class Jason {
 				valueTable[i] = fieldMeta;
 				return;
 			}
-			for (;;) {
+			for (; ; ) {
 				if (fm.hash == hash) // bad luck! try to call setKeyHashMultiplier with another prime number
 					throw new IllegalStateException("conflicted field names: " + fieldMeta.getName() + " & "
 							+ fm.getName() + " in " + fieldMeta.klass.getName());
@@ -402,7 +402,7 @@ public final class Jason {
 		return unsafe;
 	}
 
-	@SuppressWarnings({ "unchecked", "null" })
+	@SuppressWarnings({"unchecked", "null"})
 	public static <T> @NonNull ClassMeta<T> getClassMeta(@NonNull Class<T> klass) {
 		return (ClassMeta<T>)classMetas.computeIfAbsent(klass, ClassMeta::new);
 	}

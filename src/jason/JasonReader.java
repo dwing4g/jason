@@ -48,7 +48,7 @@ public final class JasonReader {
 			1e+262, 1e+263, 1e+264, 1e+265, 1e+266, 1e+267, 1e+268, 1e+269, 1e+270, 1e+271, 1e+272, 1e+273, 1e+274,
 			1e+275, 1e+276, 1e+277, 1e+278, 1e+279, 1e+280, 1e+281, 1e+282, 1e+283, 1e+284, 1e+285, 1e+286, 1e+287,
 			1e+288, 1e+289, 1e+290, 1e+291, 1e+292, 1e+293, 1e+294, 1e+295, 1e+296, 1e+297, 1e+298, 1e+299, 1e+300,
-			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308 };
+			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308};
 
 	private static final @NonNull ThreadLocal<JasonReader> localReaders = ensureNonNull(
 			ThreadLocal.withInitial(JasonReader::new));
@@ -89,7 +89,7 @@ public final class JasonReader {
 			} else { // for JDK8-
 				int n = s.length();
 				if (n == len) {
-					for (int i = 0;; i++) {
+					for (int i = 0; ; i++) {
 						if (i == n)
 							return s;
 						if (s.charAt(i) != (buf[pos + i] & 0xff))
@@ -102,7 +102,7 @@ public final class JasonReader {
 		return s;
 	}
 
-	@SuppressWarnings({ "unchecked", "null" })
+	@SuppressWarnings({"unchecked", "null"})
 	public static <T> @NonNull T allocObj(@NonNull ClassMeta<T> classMeta) throws ReflectiveOperationException {
 		Constructor<T> ctor = classMeta.ctor;
 		return ctor != null ? ctor.newInstance((Object[])null) : (T)unsafe.allocateInstance(classMeta.klass);
@@ -204,7 +204,7 @@ public final class JasonReader {
 				if (b != '/') // check comment
 					return false;
 				if ((b = buf[++pos]) == '*') {
-					for (pos++;;)
+					for (pos++; ; )
 						if (buf[pos++] == '*' && buf[pos] == '/')
 							break;
 				} else
@@ -215,7 +215,7 @@ public final class JasonReader {
 	}
 
 	public int next() {
-		for (int b;; pos++) {
+		for (int b; ; pos++) {
 			if ((b = buf[pos] & 0xff) > ' ') {
 				if (b != '/') // check comment
 					return b;
@@ -225,7 +225,7 @@ public final class JasonReader {
 	}
 
 	public int skipNext() {
-		for (int b;;) {
+		for (int b; ; ) {
 			if ((b = buf[++pos] & 0xff) > ' ') {
 				if (b != '/') // check comment
 					return b;
@@ -235,9 +235,9 @@ public final class JasonReader {
 	}
 
 	public int skipVar() {
-		for (int b, c;;) {
+		for (int b, c; ; ) {
 			if ((b = buf[pos]) == ',')
-				for (;;)
+				for (; ; )
 					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) { // (b & 0xff) > ' ' && b != ','
 						if (b != '/') // check comment
 							return b;
@@ -253,7 +253,7 @@ public final class JasonReader {
 					if (b == '\\')
 						pos++;
 			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
-				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0;) { // ]:0x5D | 0x20 = }:0x7D
+				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0; ) { // ]:0x5D | 0x20 = }:0x7D
 					if (b == '"') { // '"' = 0x22
 						while ((b = buf[pos++]) != '"')
 							if (b == '\\')
@@ -275,7 +275,7 @@ public final class JasonReader {
 	private void skipComment() {
 		int b;
 		if ((b = buf[++pos]) == '*') {
-			for (pos++;;)
+			for (pos++; ; )
 				if (buf[pos++] == '*' && buf[pos] == '/')
 					break;
 		} else
@@ -289,7 +289,7 @@ public final class JasonReader {
 	}
 
 	public void skipQuot() {
-		for (byte b; (b = buf[pos++]) != '"';)
+		for (byte b; (b = buf[pos++]) != '"'; )
 			if (b == '\\')
 				pos++;
 	}
@@ -744,7 +744,7 @@ public final class JasonReader {
 			return 0;
 		if (b == '\\')
 			b = buf[pos++];
-		for (int h = b, m = keyHashMultiplier;; h = h * m + b) {
+		for (int h = b, m = keyHashMultiplier; ; h = h * m + b) {
 			if ((b = buf[pos++]) == '"')
 				return h;
 			if (b == '\\')
@@ -758,7 +758,7 @@ public final class JasonReader {
 		if (b == '\\')
 			b = buf[++pos];
 		for ( //noinspection UnnecessaryLocalVariable
-				int h = b, m = keyHashMultiplier;; h = h * m + b) {
+				int h = b, m = keyHashMultiplier; ; h = h * m + b) {
 			if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
 				return h;
 			if (b == '/') // check comment
@@ -866,7 +866,7 @@ public final class JasonReader {
 		if (buffer[p] != '"')
 			return null;
 		final int begin = ++p;
-		for (;; p++) {
+		for (; ; p++) {
 			if ((b = buffer[p]) == '"') {
 				pos = p + 1; // lucky! finished the fast path
 				return Arrays.copyOfRange(buffer, begin, p);
@@ -888,7 +888,7 @@ public final class JasonReader {
 		byte[] t = new byte[len];
 		p = begin;
 		System.arraycopy(buffer, begin, t, 0, n);
-		for (;;) {
+		for (; ; ) {
 			if ((b = buffer[p++]) == '"') {
 				pos = p;
 				return t;
@@ -928,7 +928,7 @@ public final class JasonReader {
 		if (buffer[p] != '"')
 			return null;
 		final int begin = ++p;
-		for (;; p++) {
+		for (; ; p++) {
 			if ((b = buffer[p]) == '"') {
 				pos = p + 1; // lucky! finished the fast path
 				return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
@@ -944,9 +944,9 @@ public final class JasonReader {
 		if (t == null || t.length < len)
 			tmp = t = new char[len];
 		p = begin;
-		for (int i = 0; i < n;)
+		for (int i = 0; i < n; )
 			t[i++] = (char)(buffer[p++] & 0xff);
-		for (;;) {
+		for (; ; ) {
 			if ((b = buffer[p++]) == '"') {
 				pos = p;
 				return new String(t, 0, n);
@@ -978,7 +978,7 @@ public final class JasonReader {
 		final byte[] buffer = buf;
 		int p = pos, b;
 		final int begin = p;
-		for (;; p++) {
+		for (; ; p++) {
 			if (((((b = buffer[p]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) // (b & 0xff) <= ' ' || b == ':'
 				return intern(buffer, begin, pos = p); // lucky! finished the fast path
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
@@ -992,9 +992,9 @@ public final class JasonReader {
 		if (t == null || t.length < len)
 			tmp = t = new char[len];
 		p = begin;
-		for (int i = 0; i < n;)
+		for (int i = 0; i < n; )
 			t[i++] = (char)(buffer[p++] & 0xff);
-		for (;;) {
+		for (; ; ) {
 			if ((((b = buffer[p++] & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) <= 0) { // (b & 0xff) <= ' ' || b == ':'
 				pos = p;
 				return new String(t, 0, n);

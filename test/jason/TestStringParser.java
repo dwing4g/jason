@@ -4,11 +4,11 @@ import java.nio.charset.StandardCharsets;
 
 public final class TestStringParser {
 	public static void main(String[] args) throws ReflectiveOperationException {
-		String[] strs = { "\"\"", "\"abc\"", "\"abcdefghijklmn\"", "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"",
+		String[] strs = {"\"\"", "\"abc\"", "\"abcdefghijklmn\"", "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"",
 				"\"\\u0123\\u4567\\u89ab\\ucdef\"", "\"opqrst\\r\\nuvwxyz\"", "\"《汉字》\"",
-				"\"\\u0030\\'\\uABCD\\u00EF\"" };
-		String[] chks = { "", "abc", "abcdefghijklmn", "\"\\/\b\f\n\r\t", "\u0123\u4567\u89ab\ucdef",
-				"opqrst\r\nuvwxyz", "《汉字》", "\u0030'\uABCD\u00EF" };
+				"\"\\u0030\\'\\uABCD\\u00EF\""};
+		String[] chks = {"", "abc", "abcdefghijklmn", "\"\\/\b\f\n\r\t", "\u0123\u4567\u89ab\ucdef",
+				"opqrst\r\nuvwxyz", "《汉字》", "\u0030'\uABCD\u00EF"};
 		byte[][] tests = new byte[8][];
 		for (int i = 0; i < 8; i++)
 			tests[i] = strs[i].getBytes(StandardCharsets.UTF_8);

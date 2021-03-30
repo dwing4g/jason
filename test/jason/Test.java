@@ -124,7 +124,7 @@ public final class Test {
 		int f;
 	}
 
-	@SuppressWarnings({ "serial", "RedundantSuppression" })
+	@SuppressWarnings({"serial", "RedundantSuppression"})
 	static class F2 extends ArrayList<Object> {
 		private F2() {
 		}
@@ -155,8 +155,8 @@ public final class Test {
 	}
 
 	public static void test11() {
-		int[] a = new int[] { 1, 2, 3 };
-		String[] b = new String[] { "a", "b", "c" };
+		int[] a = new int[]{1, 2, 3};
+		String[] b = new String[]{"a", "b", "c"};
 		List<Integer> c = new ArrayList<>();
 		Collections.addAll(c, 1, 2, 3);
 		List<String> d = new ArrayList<>();
@@ -178,22 +178,9 @@ public final class Test {
 		System.out.println(JasonWriter.local().clear().write(e).toString());
 	}
 
-	@SuppressWarnings("SameParameterValue")
-	static long umulHigh(long a, long b) {
-		long a0 = a & 0xffffffffL;
-		long a1 = a >>> 32;
-		long b0 = b & 0xffffffffL;
-		long b1 = b >>> 32;
-		long t0 = a0 * b0;
-		long t1 = a0 * b1;
-		long t2 = a1 * b0;
-		long t3 = a1 * b1;
-		return t3 + (t1 >> 32) + (t2 >> 32) + (((t0 >>> 32) + (t1 & 0xffffffffL) + (t2 & 0xffffffffL)) >>> 32);
-	}
-
 	public static void test12() {
-		System.out.printf("%X%n", umulHigh(0x8000000000000001L, 0x8000000000000000L));
-		System.out.printf("%X%n", JasonWriter.umulHigh2(0x8000000000000001L, 0x8000000000000000L));
+		System.out.printf("%X%n", JasonWriter.umulHigh(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
+		System.out.printf("%X%n", JasonWriter.umulHigh2(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {

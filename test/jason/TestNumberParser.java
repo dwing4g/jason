@@ -2,9 +2,9 @@ package jason;
 
 public final class TestNumberParser {
 	public static void testReader() {
-		byte[][] tests = { "3.1234567 ".getBytes(), "31234567 ".getBytes(), "0.31234567 ".getBytes(),
+		byte[][] tests = {"3.1234567 ".getBytes(), "31234567 ".getBytes(), "0.31234567 ".getBytes(),
 				"312.34567 ".getBytes(), "3.1234567e7 ".getBytes(), "3.1234567E-7 ".getBytes(), "0 ".getBytes(),
-				"1.0 ".getBytes() };
+				"1.0 ".getBytes()};
 		JasonReader jr = new JasonReader();
 		double r = 0;
 		for (int i = 0; i < 10_000_000; i++) {
@@ -15,7 +15,7 @@ public final class TestNumberParser {
 	}
 
 	public static void testWriter() {
-		double[] tests = { 3.1234567, 31234567, 0.31234567, 312.34567, 3.1234567e7, 3.1234567E-7, 0, 1.0 };
+		double[] tests = {3.1234567, 31234567, 0.31234567, 312.34567, 3.1234567e7, 3.1234567E-7, 0, 1.0};
 		JasonWriter jw = new JasonWriter();
 		int n = 0;
 		for (int i = 0; i < 10_000_000; i++) {
