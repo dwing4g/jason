@@ -88,7 +88,6 @@ public final class Test {
 
 	public static void test7() {
 		System.out.println(System.getProperty("java.version"));
-		System.out.println(System.getProperty("java.version").replaceFirst("^1\\.", "").replaceFirst("\\D.*", ""));
 		System.out.println(Jason.getClassMeta(Inet4Address.class));
 	}
 
@@ -180,7 +179,8 @@ public final class Test {
 
 	public static void test12() {
 		System.out.printf("%X%n", JasonWriter.umulHigh(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
-		System.out.printf("%X%n", JasonWriter.umulHigh2(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
+		if (Integer.parseInt(System.getProperty("java.version").replaceFirst("^1\\.", "").replaceFirst("\\D.*", "")) > 8)
+			System.out.printf("%X%n", JasonWriter.umulHigh2(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {

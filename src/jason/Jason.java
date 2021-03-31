@@ -6,9 +6,9 @@ import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import sun.misc.Unsafe; //NOSONAR
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
+import sun.misc.Unsafe;
 
 //Compile with JDK11+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
 public final class Jason {
@@ -142,15 +142,9 @@ public final class Jason {
 
 		@SuppressWarnings("unchecked")
 		private static <T> @Nullable Constructor<T> getDefCtor(@NonNull Class<T> klass) {
-			for (Constructor<?> c : klass.getDeclaredConstructors()) {
-				if (c.getParameterCount() == 0) {
-					try {
-						setAccessible(c);
-						return (Constructor<T>)c;
-					} catch (Exception ignored) {
-					}
-				}
-			}
+			for (Constructor<?> c : klass.getDeclaredConstructors())
+				if (c.getParameterCount() == 0)
+					return (Constructor<T>)setAccessible(c);
 			return null;
 		}
 
@@ -346,24 +340,23 @@ public final class Jason {
 
 	static {
 		try {
-			Field theUnsafeField = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+			Field theUnsafeField = Unsafe.class.getDeclaredField("theUnsafe");
 			theUnsafeField.setAccessible(true);
 			unsafe = ensureNonNull((Unsafe)theUnsafeField.get(null));
 			for (long i = 8; ; i++) {
-				theUnsafeField.setAccessible(true);
 				if (unsafe.getBoolean(theUnsafeField, i)) {
 					theUnsafeField.setAccessible(false);
 					if (!unsafe.getBoolean(theUnsafeField, i)) {
 						OVERRIDE_OFFSET = i;
 						break;
 					}
+					theUnsafeField.setAccessible(true);
 				}
-				if (i == 32)
+				if (i == 32) // should be enough
 					throw new UnsupportedOperationException(System.getProperty("java.version"));
 			}
-			Method getDeclaredFields0Method = Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
-			setAccessible(getDeclaredFields0Method);
-			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(getDeclaredFields0Method));
+			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(setAccessible(
+					Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class))));
 			Field valueField = getDeclaredField(String.class, "value");
 			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(valueField));
 			BYTE_STRING = valueField.getType() == byte[].class;
@@ -388,8 +381,9 @@ public final class Jason {
 		return null;
 	}
 
-	static void setAccessible(AccessibleObject ao) {
+	static <T extends AccessibleObject> @NonNull T setAccessible(@NonNull T ao) {
 		unsafe.putBoolean(ao, OVERRIDE_OFFSET, true);
+		return ao;
 	}
 
 	@SuppressWarnings("null")
