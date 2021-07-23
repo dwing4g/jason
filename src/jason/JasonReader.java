@@ -234,8 +234,8 @@ public final class JasonReader {
 		}
 	}
 
-	public int skipVar() {
-		for (int b, c; ; ) {
+	public int skipVar(int e) { // ']' or '}'
+		for (int b; ; ) {
 			if ((b = buf[pos]) == ',')
 				for (; ; )
 					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) { // (b & 0xff) > ' ' && b != ','
@@ -243,7 +243,7 @@ public final class JasonReader {
 							return b;
 						skipComment();
 					}
-			if ((c = b | 0x20) == '}') // ]:0x5D | 0x20 = }:0x7D
+			if (b == e)
 				return b;
 			pos++;
 			if (b < '"') // fast path
@@ -252,7 +252,7 @@ public final class JasonReader {
 				while ((b = buf[pos++]) != '"')
 					if (b == '\\')
 						pos++;
-			} else if (c == '{') { // [:0x5B | 0x20 = {:0x7B
+			} else if ((b | 0x20) == '{') { // [:0x5B | 0x20 = {:0x7B
 				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0; ) { // ]:0x5D | 0x20 = }:0x7D
 					if (b == '"') { // '"' = 0x22
 						while ((b = buf[pos++]) != '"')
@@ -321,7 +321,7 @@ public final class JasonReader {
 	Collection<Object> parseArray0(@Nullable Collection<Object> c) throws ReflectiveOperationException {
 		if (c == null)
 			c = new ArrayList<>();
-		for (int b = skipNext(); b != ']'; b = skipVar())
+		for (int b = skipNext(); b != ']'; b = skipVar(']'))
 			c.add(parse(null, b));
 		pos++;
 		return c;
@@ -337,12 +337,12 @@ public final class JasonReader {
 		ClassMeta<T> classMeta = getClassMeta(elemClass);
 		Parser<T> parser = classMeta.parser;
 		if (parser != null) {
-			for (int b = skipNext(); b != ']'; b = skipVar())
+			for (int b = skipNext(); b != ']'; b = skipVar(']'))
 				c.add(parser.parse(this, classMeta, null));
 		} else {
 			if (classMeta.isAbstract)
 				throw new InstantiationException("abstract element class: " + elemClass.getName());
-			for (int b = skipNext(); b != ']'; b = skipVar())
+			for (int b = skipNext(); b != ']'; b = skipVar(']'))
 				c.add(parse0(allocObj(classMeta), classMeta));
 		}
 		pos++;
@@ -357,7 +357,7 @@ public final class JasonReader {
 	Map<String, Object> parseMap0(@Nullable Map<String, Object> m) throws ReflectiveOperationException {
 		if (m == null)
 			m = new HashMap<>();
-		for (int b = skipNext(); b != '}'; b = skipVar()) {
+		for (int b = skipNext(); b != '}'; b = skipVar('}')) {
 			String k = parseStringKey(this, b);
 			m.put(k, parse(null, skipColon()));
 		}
@@ -403,7 +403,7 @@ public final class JasonReader {
 	public <T> @NonNull T parse0(@NonNull T obj, @NonNull ClassMeta<?> classMeta) throws ReflectiveOperationException {
 		if (next() != '{')
 			return obj;
-		for (int b = skipNext(); b != '}'; b = skipVar()) {
+		for (int b = skipNext(); b != '}'; b = skipVar('}')) {
 			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
 			if (fm == null)
 				continue;
@@ -544,47 +544,47 @@ public final class JasonReader {
 					b = skipNext();
 					switch (type & 0xf) {
 					case TYPE_BOOLEAN:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : b == 't');
 						break;
 					case TYPE_BYTE:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : (byte)parseInt());
 						break;
 					case TYPE_SHORT:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : (short)parseInt());
 						break;
 					case TYPE_CHAR:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : (char)parseInt());
 						break;
 					case TYPE_INT:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : parseInt());
 						break;
 					case TYPE_LONG:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : parseLong());
 						break;
 					case TYPE_FLOAT:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : (float)parseDouble());
 						break;
 					case TYPE_DOUBLE:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(b == 'n' ? null : parseDouble());
 						break;
 					case TYPE_STRING:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(parseString(false));
 						break;
 					case TYPE_OBJECT:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(parse(null, b));
 						break;
 					case TYPE_POS:
-						for (; b != ']'; b = skipVar())
+						for (; b != ']'; b = skipVar(']'))
 							c.add(new Pos(pos));
 						break;
 					case TYPE_CUSTOM:
@@ -593,13 +593,13 @@ public final class JasonReader {
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
-							for (; b != ']'; b = skipVar())
+							for (; b != ']'; b = skipVar(']'))
 								c.add(parser.parse0(this, subClassMeta, null));
 						} else {
 							if (subClassMeta.isAbstract)
 								throw new InstantiationException(
 										"abstract element class: " + fm.getName() + " in " + classMeta.klass.getName());
-							for (; b != ']'; b = skipVar())
+							for (; b != ']'; b = skipVar(']'))
 								c.add(parse0(allocObj(subClassMeta), subClassMeta));
 						}
 						break;
@@ -638,68 +638,68 @@ public final class JasonReader {
 					KeyReader keyParser = ensureNonNull(fm.keyParser);
 					switch (type & 0xf) {
 					case TYPE_BOOLEAN:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							b = skipColon();
 							m.put(k, b == 'n' ? null : b == 't');
 						}
 						break;
 					case TYPE_BYTE:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (byte)parseInt());
 						}
 						break;
 					case TYPE_SHORT:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (short)parseInt());
 						}
 						break;
 					case TYPE_CHAR:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (char)parseInt());
 						}
 						break;
 					case TYPE_INT:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseInt());
 						}
 						break;
 					case TYPE_LONG:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseLong());
 						}
 						break;
 					case TYPE_FLOAT:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : (float)parseDouble());
 						}
 						break;
 					case TYPE_DOUBLE:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseDouble());
 						}
 						break;
 					case TYPE_STRING:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, skipColon() == 'n' ? null : parseString(false));
 						}
 						break;
 					case TYPE_OBJECT:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							m.put(k, parse(null, skipColon()));
 						}
 						break;
 					case TYPE_POS:
-						for (; b != '}'; b = skipVar()) {
+						for (; b != '}'; b = skipVar('}')) {
 							Object k = keyParser.parse(this, b);
 							skipColon();
 							m.put(k, new Pos(pos));
@@ -711,7 +711,7 @@ public final class JasonReader {
 							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
-							for (; b != '}'; b = skipVar()) {
+							for (; b != '}'; b = skipVar('}')) {
 								Object k = keyParser.parse(this, b);
 								skipColon();
 								m.put(k, parser.parse0(this, subClassMeta, null));
@@ -720,7 +720,7 @@ public final class JasonReader {
 							if (subClassMeta.isAbstract)
 								throw new InstantiationException(
 										"abstract value class: " + fm.getName() + " in " + classMeta.klass.getName());
-							for (; b != '}'; b = skipVar()) {
+							for (; b != '}'; b = skipVar('}')) {
 								Object k = keyParser.parse(this, b);
 								skipColon();
 								m.put(k, parse0(allocObj(subClassMeta), subClassMeta));
