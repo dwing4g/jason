@@ -130,6 +130,7 @@ public class TestWriter {
 		testDouble(0.123456789012, "0.123456789012");
 		testDouble(1234567.8, "1234567.8");
 		testDouble(-79.39773355813419, "-79.39773355813419");
+		testDouble(-36.973846435546875, "-36.973846435546875");
 		testDouble(0.000001, "0.000001");
 		testDouble(0.0000001, "1e-7");
 		testDouble(1e30, "1e30");

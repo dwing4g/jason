@@ -40,7 +40,9 @@ public final class JasonWriter {
 			'8', '4', '8', '5', '8', '6', '8', '7', '8', '8', '8', '9', '9', '0', '9', '1', '9', '2', '9', '3', '9',
 			'4', '9', '5', '9', '6', '9', '7', '9', '8', '9', '9'};
 
-	private static final int[] POW10 = {1, 10, 100, 1000, 1_0000, 10_0000, 100_0000, 1000_0000, 1_0000_0000};
+	private static final long[] POW10 = {1, 10, 100, 1000, 1_0000, 10_0000, 100_0000, 1000_0000, 1_0000_0000,
+			10_0000_0000, 100_0000_0000L, 1000_0000_0000L, 1_0000_0000_0000L, 10_0000_0000_0000L, 100_0000_0000_0000L,
+			1000_0000_0000_0000L, 1_0000_0000_0000_0000L, 10_0000_0000_0000_0000L, 100_0000_0000_0000_0000L};
 
 	private static final long[] CACHED_POWERS_F = {0xfa8fd5a0_081c0288L, 0xbaaee17f_a23ebf76L, 0x8b16fb20_3055ac76L,
 			0xcf42894a_5dce35eaL, 0x9a6bb0aa_55653b2dL, 0xe61acf03_3d1a45dfL, 0xab70fe17_c79ac6caL,
@@ -816,7 +818,7 @@ public final class JasonWriter {
 		} while (Long.compareUnsigned((tmp = ((long)p1 << e) + p2), delta) > 0 && --kappa > 0);
 		if (kappa != 0) {
 			kk += --kappa;
-			grisuRound(len, delta, tmp, (long)POW10[kappa] << e, pf);
+			grisuRound(len, delta, tmp, POW10[kappa] << e, pf);
 		} else { // kappa == 0
 			for (; ; ) {
 				p2 *= 10;
@@ -828,7 +830,7 @@ public final class JasonWriter {
 				kappa++;
 				if (Long.compareUnsigned(p2, delta) < 0) {
 					kk -= kappa;
-					grisuRound(len, delta, p2, ff, kappa < 9 ? POW10[kappa] * pf : 0);
+					grisuRound(len, delta, p2, ff, kappa < 19 ? POW10[kappa] * pf : 0);
 					break;
 				}
 			}
