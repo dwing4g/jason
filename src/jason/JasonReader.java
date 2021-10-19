@@ -11,6 +11,21 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import static jason.Jason.*;
 
+/*
+JSON5 additional features:
+YES - Object keys may be an ECMAScript 5.1 IdentifierName.
+YES - Objects may have a single trailing comma.
+YES - Arrays may have a single trailing comma.
+YES - Strings may be single quoted.
+YES - Strings may span multiple lines by escaping new line characters.
+YES - Strings may include character escapes.
+ NO - Numbers may be hexadecimal.
+YES - Numbers may have a leading or trailing decimal point.
+ NO - Numbers may be IEEE 754 positive infinity, negative infinity, and NaN.
+YES - Numbers may begin with an explicit plus sign.
+YES - Single and multi-line comments are allowed.
+ NO - Additional white space characters are allowed.
+*/
 public final class JasonReader {
 	private static final @NonNull Double NEGATIVE_INFINITY = Double.NEGATIVE_INFINITY;
 	private static final @NonNull Double POSITIVE_INFINITY = Double.POSITIVE_INFINITY;
@@ -235,7 +250,7 @@ public final class JasonReader {
 	}
 
 	public int skipVar(int e) { // ']' or '}'
-		for (int b; ; ) {
+		for (int b, c; ; ) {
 			if ((b = buf[pos]) == ',')
 				for (; ; )
 					if (((((b = buf[++pos]) & 0xff) - ' ' - 1) ^ (',' - ' ' - 1)) > 0) { // (b & 0xff) > ' ' && b != ','
@@ -248,15 +263,15 @@ public final class JasonReader {
 			pos++;
 			if (b < '"') // fast path
 				continue;
-			if (b == '"') {
-				while ((b = buf[pos++]) != '"')
-					if (b == '\\')
+			if (b == '"' || b == '\'') {
+				while ((c = buf[pos++]) != b)
+					if (c == '\\')
 						pos++;
 			} else if ((b | 0x20) == '{') { // [:0x5B | 0x20 = {:0x7B
 				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0; ) { // ]:0x5D | 0x20 = }:0x7D
-					if (b == '"') { // '"' = 0x22
-						while ((b = buf[pos++]) != '"')
-							if (b == '\\')
+					if (b == '"' || b == '\'') { // '"' = 0x22; '\'' = 0x27
+						while ((c = buf[pos++]) != b)
+							if (c == '\\')
 								pos++;
 					} else if (b == '{') // [:0x5B | 0x20 = {:0x7B
 						level++;
@@ -288,8 +303,8 @@ public final class JasonReader {
 		return b == ':' ? skipNext() : b;
 	}
 
-	public void skipQuot() {
-		for (byte b; (b = buf[pos++]) != '"'; )
+	public void skipQuot(int e) {
+		for (int b; (b = buf[pos++]) != e; )
 			if (b == '\\')
 				pos++;
 	}
@@ -304,9 +319,9 @@ public final class JasonReader {
 		switch (b) { //@formatter:off
 		case '{': return parseMap0(obj instanceof Map ? (Map<String, Object>) obj : null);
 		case '[': return parseArray0(obj instanceof Collection ? (Collection<Object>) obj : null);
-		case '"': return parseString(false);
-		case '0': case '1': case '2': case '3': case '4': case '5':
-		case '6': case '7': case '8': case '9': case '-': case '.': return parseNumber();
+		case '"': case '\'': return parseString(false);
+		case '0': case '1': case '2': case '3': case '4': case '5': case '6':
+		case '7': case '8': case '9': case '-': case '+': case '.': return parseNumber();
 		case 'f': return false;
 		case 't': return true;
 		} //@formatter:on
@@ -404,7 +419,7 @@ public final class JasonReader {
 		if (next() != '{')
 			return obj;
 		for (int b = skipNext(); b != '}'; b = skipVar('}')) {
-			FieldMeta fm = classMeta.get(b == '"' ? parseKeyHash() : parseKeyHashNoQuot(b));
+			FieldMeta fm = classMeta.get(b == '"' || b == '\'' ? parseKeyHash(b) : parseKeyHashNoQuot(b));
 			if (fm == null)
 				continue;
 			b = skipColon();
@@ -737,15 +752,15 @@ public final class JasonReader {
 	}
 
 	@SuppressWarnings("UnnecessaryLocalVariable")
-	int parseKeyHash() {
-		pos++; // skip the first '"'
+	int parseKeyHash(int e) {
+		pos++; // skip the first '"' or '\''
 		int b = buf[pos++];
-		if (b == '"')
+		if (b == e)
 			return 0;
 		if (b == '\\')
 			b = buf[pos++];
 		for (int h = b, m = keyHashMultiplier; ; h = h * m + b) {
-			if ((b = buf[pos++]) == '"')
+			if ((b = buf[pos++]) == e)
 				return h;
 			if (b == '\\')
 				b = buf[pos++];
@@ -769,15 +784,15 @@ public final class JasonReader {
 	}
 
 	static @NonNull String parseStringKey(@NonNull JasonReader jr, int b) throws ReflectiveOperationException {
-		String key = b == '"' ? jr.parseString(true) : jr.parseStringNoQuot();
+		String key = b == '"' || b == '\'' ? jr.parseString(true) : jr.parseStringNoQuot();
 		return key != null ? key : "";
 	}
 
 	static @NonNull Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {
 		boolean v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			v = jr.buf[++jr.pos] == 't';
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.buf[++jr.pos] == 't';
 		return v;
@@ -785,10 +800,10 @@ public final class JasonReader {
 
 	static @NonNull Byte parseByteKey(@NonNull JasonReader jr, int b) {
 		int v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseInt();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseInt();
 		return (byte)v;
@@ -796,10 +811,10 @@ public final class JasonReader {
 
 	static @NonNull Short parseShortKey(@NonNull JasonReader jr, int b) {
 		int v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseInt();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseInt();
 		return (short)v;
@@ -807,10 +822,10 @@ public final class JasonReader {
 
 	static @NonNull Character parseCharKey(@NonNull JasonReader jr, int b) {
 		int v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseInt();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseInt();
 		return (char)v;
@@ -818,10 +833,10 @@ public final class JasonReader {
 
 	static @NonNull Integer parseIntegerKey(@NonNull JasonReader jr, int b) {
 		int v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseInt();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseInt();
 		return v;
@@ -829,10 +844,10 @@ public final class JasonReader {
 
 	static @NonNull Long parseLongKey(@NonNull JasonReader jr, int b) {
 		long v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseLong();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseLong();
 		return v;
@@ -840,10 +855,10 @@ public final class JasonReader {
 
 	static @NonNull Float parseFloatKey(@NonNull JasonReader jr, int b) {
 		double v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseDouble();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseDouble();
 		return (float)v;
@@ -851,10 +866,10 @@ public final class JasonReader {
 
 	static @NonNull Double parseDoubleKey(@NonNull JasonReader jr, int b) {
 		double v;
-		if (b == '"') {
+		if (b == '"' || b == '\'') {
 			jr.pos++;
 			v = jr.parseDouble();
-			jr.skipQuot();
+			jr.skipQuot(b);
 		} else
 			v = jr.parseDouble();
 		return v;
@@ -862,12 +877,12 @@ public final class JasonReader {
 
 	public byte[] parseByteString() {
 		final byte[] buffer = buf;
-		int p = pos, b;
-		if (buffer[p] != '"')
+		int p = pos, b, e = buffer[p];
+		if (e != '"' && e != '\'')
 			return null;
 		final int begin = ++p;
 		for (; ; p++) {
-			if ((b = buffer[p]) == '"') {
+			if ((b = buffer[p]) == e) {
 				pos = p + 1; // lucky! finished the fast path
 				return Arrays.copyOfRange(buffer, begin, p);
 			}
@@ -875,7 +890,7 @@ public final class JasonReader {
 				break; // jump to the slow path below
 		}
 		int len = p - begin, n = len;
-		for (; (b = buffer[p++]) != '"'; len++)
+		for (; (b = buffer[p++]) != e; len++)
 			if (b == '\\' && buffer[p++] == 'u') {
 				b = (parseHex(buffer[p]) << 12) + (parseHex(buffer[p + 1]) << 8) + (parseHex(buffer[p + 2]) << 4)
 						+ parseHex(buffer[p + 3]);
@@ -889,7 +904,7 @@ public final class JasonReader {
 		p = begin;
 		System.arraycopy(buffer, begin, t, 0, n);
 		for (; ; ) {
-			if ((b = buffer[p++]) == '"') {
+			if ((b = buffer[p++]) == e) {
 				pos = p;
 				return t;
 			}
@@ -924,12 +939,12 @@ public final class JasonReader {
 
 	public @Nullable String parseString(boolean intern) throws ReflectiveOperationException {
 		final byte[] buffer = buf;
-		int p = pos, b;
-		if (buffer[p] != '"')
+		int p = pos, b, e = buffer[p];
+		if (e != '"' && e != '\'')
 			return null;
 		final int begin = ++p;
 		for (; ; p++) {
-			if ((b = buffer[p]) == '"') {
+			if ((b = buffer[p]) == e) {
 				pos = p + 1; // lucky! finished the fast path
 				return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
 			}
@@ -937,7 +952,7 @@ public final class JasonReader {
 				break; // jump to the slow path below
 		}
 		int len = p - begin, n = len, c, d;
-		for (; (b = buffer[p++]) != '"'; len++)
+		for (; (b = buffer[p++]) != e; len++)
 			if (b == '\\' && buffer[p++] == 'u')
 				p += 4;
 		char[] t = tmp;
@@ -947,7 +962,7 @@ public final class JasonReader {
 		for (int i = 0; i < n; )
 			t[i++] = (char)(buffer[p++] & 0xff);
 		for (; ; ) {
-			if ((b = buffer[p++]) == '"') {
+			if ((b = buffer[p++]) == e) {
 				pos = p;
 				return new String(t, 0, n);
 			}
@@ -1037,7 +1052,8 @@ public final class JasonReader {
 			if (b == '-') {
 				minus = true;
 				b = buffer[++p];
-			}
+			} else if (b == '+')
+				b = buffer[++p];
 			if (b == '0')
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
@@ -1091,7 +1107,8 @@ public final class JasonReader {
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
-				}
+				} else if (b == '+')
+					b = buffer[++p];
 				if ((b = (b - '0') & 0xff) < 10) {
 					exp = b;
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
@@ -1135,7 +1152,8 @@ public final class JasonReader {
 			if (b == '-') {
 				minus = true;
 				b = buffer[++p];
-			}
+			} else if (b == '+')
+				b = buffer[++p];
 			if (b == '0')
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
@@ -1189,7 +1207,8 @@ public final class JasonReader {
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
-				}
+				} else if (b == '+')
+					b = buffer[++p];
 				if ((b = (b - '0') & 0xff) < 10) {
 					exp = b;
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
@@ -1233,7 +1252,8 @@ public final class JasonReader {
 			if (b == '-') {
 				minus = true;
 				b = buffer[++p];
-			}
+			} else if (b == '+')
+				b = buffer[++p];
 			if (b == '0')
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
@@ -1287,7 +1307,8 @@ public final class JasonReader {
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
-				}
+				} else if (b == '+')
+					b = buffer[++p];
 				if ((b = (b - '0') & 0xff) < 10) {
 					exp = b;
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
@@ -1332,7 +1353,8 @@ public final class JasonReader {
 			if (b == '-') {
 				minus = true;
 				b = buffer[++p];
-			}
+			} else if (b == '+')
+				b = buffer[++p];
 			if (b == '0')
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
@@ -1386,7 +1408,8 @@ public final class JasonReader {
 				if (b == '-') {
 					expMinus = true;
 					b = buffer[++p];
-				}
+				} else if (b == '+')
+					b = buffer[++p];
 				if ((b = (b - '0') & 0xff) < 10) {
 					exp = b;
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
