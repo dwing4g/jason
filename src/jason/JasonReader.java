@@ -13,18 +13,18 @@ import static jason.Jason.*;
 
 /*
 JSON5 additional features:
-YES - Object keys may be an ECMAScript 5.1 IdentifierName.
-YES - Objects may have a single trailing comma.
-YES - Arrays may have a single trailing comma.
-YES - Strings may be single quoted.
-YES - Strings may span multiple lines by escaping new line characters.
-YES - Strings may include character escapes.
- NO - Numbers may be hexadecimal.
-YES - Numbers may have a leading or trailing decimal point.
- NO - Numbers may be IEEE 754 positive infinity, negative infinity, and NaN.
-YES - Numbers may begin with an explicit plus sign.
-YES - Single and multi-line comments are allowed.
- NO - Additional white space characters are allowed.
+ YES : Object keys may be an ECMAScript 5.1 IdentifierName.
+ YES : Objects may have a single trailing comma.
+ YES : Arrays may have a single trailing comma.
+ YES : Strings may be single quoted.
+ YES : Strings may span multiple lines by escaping new line characters.
+ YES : Strings may include character escapes.
+  NO : Numbers may be hexadecimal. 0xdecaf,-0XC0FFEE
+ YES : Numbers may have a leading or trailing decimal point.
+  NO : Numbers may be IEEE 754 "Infinity", "-Infinity", and "NaN".
+ YES : Numbers may begin with an explicit plus sign.
+ YES : Single and multi-line comments are allowed.
+  NO : Additional white space characters are allowed: \t,\n,\v(\x0b),\f(\x0c),\r, (\x20),\xa0,\u2028,\u2029,\uFEFF
 */
 public final class JasonReader {
 	private static final @NonNull Double NEGATIVE_INFINITY = Double.NEGATIVE_INFINITY;
@@ -33,11 +33,11 @@ public final class JasonReader {
 	private static final byte[] ESCAPE = { // @formatter:off
 		//   0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
 			' ', '!', '"', '#', '$', '%', '&','\'', '(', ')', '*', '+', ',', '-', '.', '/', // 0x2x
-			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', // 0x3x
+			'\0','1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', // 0x3x
 			'@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', // 0x4x
 			'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[','\\', ']', '^', '_', // 0x5x
 			'`', 'a','\b', 'c', 'd', 'e','\f', 'g', 'h', 'i', 'j', 'k', 'l', 'm','\n', 'o', // 0x6x
-			'p', 'q','\r', 's','\t', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '?', // 0x7x
+			'p', 'q','\r', 's','\t', 'u',0x0b, 'w', 'x', 'y', 'z', '{', '|', '}', '~', '?', // 0x7x
 	}; //@formatter:on
 
 	private static final double[] EXP = { // 1e0...1e308: 309 * 8 bytes = 2472 bytes
