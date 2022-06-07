@@ -10,7 +10,7 @@ public final class JasonToken {
 	public static final int SIZE_MASK = ~TYPE_MASK;
 
 	/**
-	 * Reference: original C implement: https://github.com/zserge/jsmn
+	 * Reference: original C implement: <a href="https://github.com/zserge/jsmn">jsmn</a>
 	 *
 	 * @param in    json string (readonly byte array)
 	 * @param inPos start offset from json array

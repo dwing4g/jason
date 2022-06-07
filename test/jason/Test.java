@@ -62,28 +62,28 @@ public final class Test {
 		C c = new C();
 		c.a.a = 1;
 		((B)c.a).b = -1;
-		System.out.println(JasonWriter.local().clear().write(c).toString());
+		System.out.println(JasonWriter.local().clear().write(c));
 	}
 
 	public static void test4() {
 		C c = new C();
 		c.a.a = 1;
 		((B)c.a).b = -1;
-		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_PRETTY_FORMAT).write(c).toString());
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_PRETTY_FORMAT).write(c));
 	}
 
 	public static void test5() {
 		C c = new C();
 		c.a.a = 1;
 		((B)c.a).b = -1;
-		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_NO_QUOTE_KEY).write(c).toString());
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_NO_QUOTE_KEY).write(c));
 	}
 
 	public static void test6() {
 		C c = new C();
 		c.a.a = 1;
 		((B)c.a).b = -1;
-		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_WRITE_NULL).write(c).toString());
+		System.out.println(JasonWriter.local().clear().setFlags(JasonWriter.FLAG_WRITE_NULL).write(c));
 	}
 
 	public static void test7() {
@@ -116,7 +116,7 @@ public final class Test {
 		E e = new E();
 		e.a = 123;
 		e.e = e;
-		System.out.println(JasonWriter.local().clear().setDepthLimit(4).write(e).toString());
+		System.out.println(JasonWriter.local().clear().setDepthLimit(4).write(e));
 	}
 
 	abstract static class F1 {
@@ -164,23 +164,23 @@ public final class Test {
 		e.put(1, "a");
 		e.put(2, "b");
 		e.put(3, "c");
-		System.out.println(JasonWriter.local().clear().write(a).toString());
-		System.out.println(JasonWriter.local().clear().write(b).toString());
-		System.out.println(JasonWriter.local().clear().write(c).toString());
-		System.out.println(JasonWriter.local().clear().write(d).toString());
-		System.out.println(JasonWriter.local().clear().write(e).toString());
+		System.out.println(JasonWriter.local().clear().write(a));
+		System.out.println(JasonWriter.local().clear().write(b));
+		System.out.println(JasonWriter.local().clear().write(c));
+		System.out.println(JasonWriter.local().clear().write(d));
+		System.out.println(JasonWriter.local().clear().write(e));
 		JasonWriter.local().setPrettyFormat(true).setWrapElement(true);
-		System.out.println(JasonWriter.local().clear().write(a).toString());
-		System.out.println(JasonWriter.local().clear().write(b).toString());
-		System.out.println(JasonWriter.local().clear().write(c).toString());
-		System.out.println(JasonWriter.local().clear().write(d).toString());
-		System.out.println(JasonWriter.local().clear().write(e).toString());
+		System.out.println(JasonWriter.local().clear().write(a));
+		System.out.println(JasonWriter.local().clear().write(b));
+		System.out.println(JasonWriter.local().clear().write(c));
+		System.out.println(JasonWriter.local().clear().write(d));
+		System.out.println(JasonWriter.local().clear().write(e));
 	}
 
 	public static void test12() {
 		System.out.printf("%X%n", JasonWriter.umulHigh(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
 		if (Integer.parseInt(System.getProperty("java.version").replaceFirst("^1\\.", "").replaceFirst("\\D.*", "")) > 8)
-			System.out.printf("%X%n", JasonWriter.umulHigh2(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
+			System.out.printf("%X%n", JasonWriter.umulHigh9(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
 	}
 
 	public static void main(String[] args) throws ReflectiveOperationException {

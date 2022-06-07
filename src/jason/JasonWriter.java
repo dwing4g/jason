@@ -685,38 +685,24 @@ public final class JasonWriter {
 		}
 	}
 
-	static long umulHigh(long a, long b) {
-		long a0 = a & 0xffff_ffffL;
-		long a1 = a >>> 32;
-		long b0 = b & 0xffff_ffffL;
-		long b1 = b >>> 32;
-		long t0 = a0 * b0;
-		long t1 = a0 * b1;
-		long t2 = a1 * b0;
-		long t3 = a1 * b1;
-		return t3 + (t1 >>> 32) + (t2 >>> 32) + (((t0 >>> 32) + (t1 & 0xffffffffL) + (t2 & 0xffffffffL)) >>> 32);
+	static long umulHigh(long a, long b) { // for JDK8-
+		long a1 = a >> 32;
+		long a2 = a & 0xffff_ffffL;
+		long b1 = b >> 32;
+		long b2 = b & 0xffff_ffffL;
+		long c2 = a2 * b2;
+		long t = a1 * b2 + (c2 >>> 32);
+		long c1 = t & 0xffff_ffffL;
+		long c0 = t >> 32;
+		c1 += a2 * b1;
+		return a1 * b1 + c0 + (c1 >> 32);
 	}
 
-	static long umulHigh1(long a, long b) { // b < 0
-		b &= 0x7FFF_FFFF_FFFF_FFFFL;
-		long ab0, ab1;
-		if (a >= 0) {
-			ab0 = (((a * b) >>> 63) + (a & 1)) >> 1;
-			ab1 = Math.multiplyHigh(a, b) + (a >> 1);
-		} else {
-			a &= 0x7FFF_FFFF_FFFF_FFFFL;
-			ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1)) >> 1;
-			ab1 = Math.multiplyHigh(a, b) + (a >> 1) + (b >> 1) + (1L << 62);
-		}
-		return ab0 + ab1;
-	}
-
-	static long umulHigh2(long a, long b) { // a < 0 && b < 0
-		a &= 0x7FFF_FFFF_FFFF_FFFFL;
-		b &= 0x7FFF_FFFF_FFFF_FFFFL;
-		long ab0 = (((a * b) >>> 63) + (a & 1) + (b & 1)) >> 1;
-		long ab1 = Math.multiplyHigh(a, b) + (a >> 1) + (b >> 1) + (1L << 62);
-		return ab0 + ab1;
+	static long umulHigh9(long a, long b) { // for JDK9+
+		long r = Math.multiplyHigh(a, b);
+		r += (b & (a >> 63));
+		r += (a & (b >> 63));
+		return r;
 	}
 
 	void grisuRound(final int len, final long delta, long rest, final long tenKappa, final long mpf) {
@@ -773,9 +759,9 @@ public final class JasonWriter {
 
 		final long cmkf = CACHED_POWERS_F[idx]; // highest bit == 1
 		if (BYTE_STRING) { // for JDK9+
-			f = umulHigh2(f, cmkf);
-			pf = umulHigh2(pf, cmkf);
-			mf = umulHigh1(mf, cmkf);
+			f = umulHigh9(f, cmkf);
+			pf = umulHigh9(pf, cmkf);
+			mf = umulHigh9(mf, cmkf);
 		} else {
 			f = umulHigh(f, cmkf);
 			pf = umulHigh(pf, cmkf);

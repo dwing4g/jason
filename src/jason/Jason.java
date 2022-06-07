@@ -10,16 +10,16 @@ import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import sun.misc.Unsafe;
 
-//Compile with JDK11+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
+// Compile with JDK11+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
 public final class Jason {
-	static final int TYPE_BOOLEAN = 1; // boolean Boolean
-	static final int TYPE_BYTE = 2; // byte Byte
-	static final int TYPE_SHORT = 3; // short Short
-	static final int TYPE_CHAR = 4; // char Character
-	static final int TYPE_INT = 5; // int Integer
-	static final int TYPE_LONG = 6; // long Long
-	static final int TYPE_FLOAT = 7; // float Float
-	static final int TYPE_DOUBLE = 8; // double Double
+	static final int TYPE_BOOLEAN = 1; // boolean, Boolean
+	static final int TYPE_BYTE = 2; // byte, Byte
+	static final int TYPE_SHORT = 3; // short, Short
+	static final int TYPE_CHAR = 4; // char, Character
+	static final int TYPE_INT = 5; // int, Integer
+	static final int TYPE_LONG = 6; // long, Long
+	static final int TYPE_FLOAT = 7; // float, Float
+	static final int TYPE_DOUBLE = 8; // double, Double
 	static final int TYPE_STRING = 9; // String
 	static final int TYPE_OBJECT = 10; // Object(null,Boolean,Integer,Long,Double,String,ArrayList<?>,HashMap<?,?>)
 	static final int TYPE_POS = 11; // Pos(pos)
@@ -373,7 +373,6 @@ public final class Jason {
 		}
 	}
 
-	@SuppressWarnings("SameParameterValue")
 	static @Nullable Field getDeclaredField(Class<?> klass, String fieldName) {
 		for (Field field : getDeclaredFields(klass))
 			if (field.getName().equals(fieldName))
