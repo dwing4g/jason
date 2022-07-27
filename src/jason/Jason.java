@@ -6,6 +6,7 @@ import java.lang.reflect.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
 import sun.misc.Unsafe;
@@ -63,13 +64,13 @@ public final class Jason {
 
 	public interface Parser<T> {
 		@Nullable
-		T parse(@NonNull JasonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable T obj)
+		T parse(@NonNull JasonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable T obj, @Nullable Object parent)
 				throws ReflectiveOperationException;
 
 		@SuppressWarnings("unchecked")
-		default @Nullable T parse0(@NonNull JasonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj)
-				throws ReflectiveOperationException {
-			return parse(reader, (ClassMeta<T>)classMeta, (T)obj);
+		default @Nullable T parse0(@NonNull JasonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj,
+								   @Nullable Object parent) throws ReflectiveOperationException {
+			return parse(reader, (ClassMeta<T>)classMeta, (T)obj, parent);
 		}
 	}
 
@@ -96,6 +97,7 @@ public final class Jason {
 	public static final class ClassMeta<T> {
 		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
 		private static final @NonNull HashMap<Type, KeyReader> keyReaderMap = new HashMap<>(16);
+		public static BiFunction<Class<?>, Field, String> fieldNameFilter;
 		private final FieldMeta[] valueTable;
 		final FieldMeta[] fieldMetas;
 		final @NonNull Class<T> klass;
@@ -134,6 +136,10 @@ public final class Jason {
 			keyReaderMap.put(Double.class, JasonReader::parseDoubleKey);
 			keyReaderMap.put(String.class, JasonReader::parseStringKey);
 			keyReaderMap.put(Object.class, JasonReader::parseStringKey);
+		}
+
+		static boolean isInKeyReaderMap(Class<?> klass) {
+			return keyReaderMap.containsKey(klass);
 		}
 
 		static boolean isAbstract(@NonNull Class<?> klass) {
@@ -253,8 +259,20 @@ public final class Jason {
 							v = typeMap.get(fieldClass = ensureNonNull((Class<?>)subTypes[1]));
 							type = TYPE_MAP_FLAG + (v != null ? v & 0xf : TYPE_CUSTOM);
 							keyReader = keyReaderMap.get(subTypes[0]);
-							if (keyReader == null)
-								keyReader = JasonReader::parseStringKey;
+							if (keyReader == null) {
+								Class<?> keyClass = (Class<?>)subTypes[0];
+								if (isAbstract(keyClass))
+									throw new IllegalStateException("unsupported abstract key class for field: "
+											+ fieldName + " in " + klass.getName());
+								Constructor<?> keyCtor = getDefCtor(keyClass);
+								if (keyCtor == null)
+									throw new IllegalStateException("key class does not have default constructor for" +
+											" field: " + fieldName + " in " + klass.getName());
+								keyReader = (jr, b) -> {
+									String keyStr = JasonReader.parseStringKey(jr, b);
+									return ensureNonNull(new JasonReader().buf(keyStr).parse(keyCtor.newInstance()));
+								};
+							}
 						} else {
 							type = TYPE_MAP_FLAG + TYPE_OBJECT;
 							keyReader = JasonReader::parseStringKey;
@@ -265,7 +283,8 @@ public final class Jason {
 					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ fieldName + " in " + klass.getName());
-					put(j++, new FieldMeta(type, (int)offset, ensureNonNull(fieldName), fieldClass, fieldCtor,
+					final String fn = fieldNameFilter != null ? fieldNameFilter.apply(c, field) : fieldName;
+					put(j++, new FieldMeta(type, (int)offset, fn != null ? fn : fieldName, fieldClass, fieldCtor,
 							keyReader));
 				}
 			}

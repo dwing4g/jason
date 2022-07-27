@@ -22,6 +22,7 @@ public final class Test {
 	static class C {
 		A a = new B();
 		C c;
+		Map<A, Integer> m = new HashMap<>();
 	}
 
 	public static void test1() throws ReflectiveOperationException {
@@ -50,7 +51,7 @@ public final class Test {
 			throw new RuntimeException();
 		System.out.println(c.a.getClass() == A.class && c.a.a == 5);
 
-		Jason.getClassMeta(A.class).setParser((jason, __, ___) -> jason.parse(B.class));
+		Jason.getClassMeta(A.class).setParser((jason, __, ___, ____) -> jason.parse(B.class));
 		c.a = null;
 		c = JasonReader.local().buf("{a:{a:7,b:8}}").parse(c);
 		if (c == null)
@@ -183,6 +184,20 @@ public final class Test {
 			System.out.printf("%X%n", JasonWriter.umulHigh9(0x8000_0000_0000_0001L, 0x8000_0000_0000_0000L));
 	}
 
+	public static void test13() throws ReflectiveOperationException {
+		C c = new C();
+		A a = new A();
+		a.a = 123;
+		c.m.put(a, 456);
+		String j = JasonWriter.local().clear().write(c).toString();
+		System.out.println(j);
+		c.m.clear();
+		JasonReader.local().buf(j).parse(c);
+		Map.Entry<A, Integer> e = c.m.entrySet().iterator().next();
+		System.out.println(e.getKey().a);
+		System.out.println(e.getValue());
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -196,5 +211,6 @@ public final class Test {
 		test10();
 		test11();
 		test12();
+		test13();
 	}
 }

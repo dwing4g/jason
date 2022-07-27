@@ -459,21 +459,30 @@ public final class JasonWriter {
 				buf[pos++] = '{';
 				if ((flags & FLAG_PRETTY_FORMAT) == 0) {
 					for (Entry<?, ?> e : ((Map<?, ?>)obj).entrySet()) {
-						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
+						Object value = e.getValue();
+						if (value == null && (flags & FLAG_WRITE_NULL) == 0)
 							continue;
 						if (comma)
 							buf[pos++] = ',';
-						s = String.valueOf(e.getKey());
-						ensure(s.length() * 6 + 3); // "xxxxxx":
-						write(s, noQuote);
+						Object k = e.getKey();
+						if (k == null || Jason.ClassMeta.isInKeyReaderMap(k.getClass())) {
+							s = String.valueOf(k);
+							ensure(s.length() * 6 + 3); // "xxxxxx":
+							write(s, noQuote && s.indexOf(':') < 0);
+						} else {
+							byte[] keyStr = new JasonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(k).toBytes();
+							ensure(keyStr.length * 6 + 3); // "xxxxxx":
+							write(keyStr, false);
+						}
 						buf[pos++] = ':';
-						write(e.getValue());
+						write(value);
 						comma = true;
 					}
 					ensure(2);
 				} else {
 					for (Entry<?, ?> e : ((Map<?, ?>)obj).entrySet()) {
-						if (e.getValue() == null && (flags & FLAG_WRITE_NULL) == 0)
+						Object value = e.getValue();
+						if (value == null && (flags & FLAG_WRITE_NULL) == 0)
 							continue;
 						if (comma)
 							buf[pos++] = ',';
@@ -482,12 +491,19 @@ public final class JasonWriter {
 							comma = true;
 						}
 						writeNewLineTabs();
-						s = String.valueOf(e.getKey());
-						ensure(s.length() * 6 + 4); // "xxxxxx":_
-						write(s, noQuote);
+						Object k = e.getKey();
+						if (k == null || Jason.ClassMeta.isInKeyReaderMap(k.getClass())) {
+							s = String.valueOf(k);
+							ensure(s.length() * 6 + 4); // "xxxxxx":_
+							write(s, noQuote && s.indexOf(':') < 0);
+						} else {
+							byte[] keyStr = new JasonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(k).toBytes();
+							ensure(keyStr.length * 6 + 4); // "xxxxxx":_
+							write(keyStr, false);
+						}
 						buf[pos++] = ':';
 						buf[pos++] = ' ';
-						write(e.getValue());
+						write(value);
 					}
 					if (comma) {
 						tabs--;
@@ -685,7 +701,7 @@ public final class JasonWriter {
 		}
 	}
 
-	static long umulHigh(long a, long b) { // for JDK8-
+	public static long umulHigh(long a, long b) { // for JDK8-
 		long a1 = a >> 32;
 		long a2 = a & 0xffff_ffffL;
 		long b1 = b >> 32;
@@ -698,7 +714,7 @@ public final class JasonWriter {
 		return a1 * b1 + c0 + (c1 >> 32);
 	}
 
-	static long umulHigh9(long a, long b) { // for JDK9+
+	public static long umulHigh9(long a, long b) { // for JDK9+
 		long r = Math.multiplyHigh(a, b);
 		r += (b & (a >> 63));
 		r += (a & (b >> 63));
