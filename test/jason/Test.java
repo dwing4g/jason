@@ -1,6 +1,7 @@
 package jason;
 
 import java.net.Inet4Address;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -198,6 +199,42 @@ public final class Test {
 		System.out.println(e.getValue());
 	}
 
+	private static void assertEquals(int a, int b) {
+		if (a != b)
+			throw new AssertionError(a + " != " + b);
+	}
+
+	@SuppressWarnings("SameParameterValue")
+	private static void assertEquals(String a, String b) {
+		if (!a.equals(b))
+			throw new AssertionError(a + " != " + b);
+	}
+
+	public static void test14() {
+		byte[] b = JasonReader.local().buf("'\\u001F\\u03A0\\u9abf\\uD955\\udeaa'").parseByteString();
+		assert b != null;
+		String s = new String(b, StandardCharsets.UTF_8);
+		assertEquals(10, b.length);
+		assertEquals(5, s.length());
+		assertEquals(0x1f, s.charAt(0));
+		assertEquals(0x3a0, s.charAt(1));
+		assertEquals(0x9abf, s.charAt(2));
+		assertEquals(0xd955, s.charAt(3));
+		assertEquals(0xdeaa, s.charAt(4));
+
+		JasonWriter.local().clear().write(s, true);
+		char[] c = JasonWriter.local().toChars();
+		assertEquals(15, JasonWriter.local().size()); // 6+2+3+4
+		assertEquals(10, c.length); // 6+1+1+2
+		assertEquals("\\u001F", new String(c, 0, 6));
+		assertEquals(0x3a0, c[6]);
+		assertEquals(0x9abf, c[7]);
+		assertEquals(0xd955, c[8]);
+		assertEquals(0xdeaa, c[9]);
+
+		System.out.println("test14 OK!");
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -212,5 +249,6 @@ public final class Test {
 		test11();
 		test12();
 		test13();
+		test14();
 	}
 }
