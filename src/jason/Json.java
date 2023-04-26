@@ -12,7 +12,7 @@ import org.eclipse.jdt.annotation.Nullable;
 import sun.misc.Unsafe;
 
 // Compile with JDK11+; Run with JDK8+ (JDK9+ is recommended); Android is NOT supported
-public final class Jason {
+public final class Json implements Cloneable {
 	static final int TYPE_BOOLEAN = 1; // boolean, Boolean
 	static final int TYPE_BYTE = 2; // byte, Byte
 	static final int TYPE_SHORT = 3; // short, Short
@@ -31,7 +31,7 @@ public final class Jason {
 
 	interface KeyReader {
 		@NonNull
-		Object parse(@NonNull JasonReader jr, int b) throws ReflectiveOperationException;
+		Object parse(@NonNull JsonReader jr, int b) throws ReflectiveOperationException;
 	}
 
 	interface Creator<T> {
@@ -68,21 +68,21 @@ public final class Jason {
 
 	public interface Parser<T> {
 		@Nullable
-		T parse(@NonNull JasonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable T obj, @Nullable Object parent)
+		T parse(@NonNull JsonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable T obj, @Nullable Object parent)
 				throws ReflectiveOperationException;
 
 		@SuppressWarnings("unchecked")
-		default @Nullable T parse0(@NonNull JasonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj,
+		default @Nullable T parse0(@NonNull JsonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj,
 								   @Nullable Object parent) throws ReflectiveOperationException {
 			return parse(reader, (ClassMeta<T>)classMeta, (T)obj, parent);
 		}
 	}
 
 	public interface Writer<T> {
-		void write(@NonNull JasonWriter writer, @NonNull ClassMeta<T> classMeta, @Nullable T obj);
+		void write(@NonNull JsonWriter writer, @NonNull ClassMeta<T> classMeta, @Nullable T obj);
 
 		@SuppressWarnings("unchecked")
-		default void write0(@NonNull JasonWriter writer, @NonNull ClassMeta<?> classMeta, @Nullable Object obj) {
+		default void write0(@NonNull JsonWriter writer, @NonNull ClassMeta<?> classMeta, @Nullable Object obj) {
 			write(writer, (ClassMeta<T>)classMeta, (T)obj);
 		}
 	}
@@ -101,12 +101,12 @@ public final class Jason {
 	public static final class ClassMeta<T> {
 		private static final @NonNull HashMap<Class<?>, Integer> typeMap = new HashMap<>(32);
 		private static final @NonNull HashMap<Type, KeyReader> keyReaderMap = new HashMap<>(16);
-		public static BiFunction<Class<?>, Field, String> fieldNameFilter;
-		private final FieldMeta[] valueTable;
-		final FieldMeta[] fieldMetas;
+
+		final @NonNull Json json;
 		final @NonNull Class<T> klass;
 		final @NonNull Creator<T> ctor;
-		final boolean isAbstract;
+		private final FieldMeta[] valueTable;
+		final FieldMeta[] fieldMetas;
 		transient @Nullable Parser<T> parser; // user custom parser
 		transient @Nullable Writer<T> writer; // user custom writer
 
@@ -130,16 +130,16 @@ public final class Jason {
 			typeMap.put(Long.class, TYPE_WRAP_FLAG + TYPE_LONG);
 			typeMap.put(Float.class, TYPE_WRAP_FLAG + TYPE_FLOAT);
 			typeMap.put(Double.class, TYPE_WRAP_FLAG + TYPE_DOUBLE);
-			keyReaderMap.put(Boolean.class, JasonReader::parseBooleanKey);
-			keyReaderMap.put(Byte.class, JasonReader::parseByteKey);
-			keyReaderMap.put(Short.class, JasonReader::parseShortKey);
-			keyReaderMap.put(Character.class, JasonReader::parseCharKey);
-			keyReaderMap.put(Integer.class, JasonReader::parseIntegerKey);
-			keyReaderMap.put(Long.class, JasonReader::parseLongKey);
-			keyReaderMap.put(Float.class, JasonReader::parseFloatKey);
-			keyReaderMap.put(Double.class, JasonReader::parseDoubleKey);
-			keyReaderMap.put(String.class, JasonReader::parseStringKey);
-			keyReaderMap.put(Object.class, JasonReader::parseStringKey);
+			keyReaderMap.put(Boolean.class, JsonReader::parseBooleanKey);
+			keyReaderMap.put(Byte.class, JsonReader::parseByteKey);
+			keyReaderMap.put(Short.class, JsonReader::parseShortKey);
+			keyReaderMap.put(Character.class, JsonReader::parseCharKey);
+			keyReaderMap.put(Integer.class, JsonReader::parseIntegerKey);
+			keyReaderMap.put(Long.class, JsonReader::parseLongKey);
+			keyReaderMap.put(Float.class, JsonReader::parseFloatKey);
+			keyReaderMap.put(Double.class, JsonReader::parseDoubleKey);
+			keyReaderMap.put(String.class, JsonReader::parseStringKey);
+			keyReaderMap.put(Object.class, JsonReader::parseStringKey);
 		}
 
 		static boolean isInKeyReaderMap(Class<?> klass) {
@@ -204,7 +204,10 @@ public final class Jason {
 			return null;
 		}
 
-		ClassMeta(final @NonNull Class<T> klass) {
+		ClassMeta(final @NonNull Json json, final @NonNull Class<T> klass) {
+			this.json = json;
+			this.klass = klass;
+			ctor = getDefCtor(klass);
 			int size = 0;
 			for (Class<?> c = klass; c != null; c = c.getSuperclass())
 				for (Field field : getDeclaredFields(c))
@@ -212,9 +215,6 @@ public final class Jason {
 						size++;
 			valueTable = new FieldMeta[1 << (32 - Integer.numberOfLeadingZeros(size * 2 - 1))];
 			fieldMetas = new FieldMeta[size];
-			this.klass = klass;
-			isAbstract = isAbstract(klass);
-			ctor = getDefCtor(klass);
 			ArrayList<Class<? super T>> classes = new ArrayList<>(2);
 			for (Class<? super T> c = klass; c != null; c = c.getSuperclass())
 				classes.add(c);
@@ -273,13 +273,13 @@ public final class Jason {
 											+ fieldName + " in " + klass.getName());
 								Creator<?> keyCtor = getDefCtor(keyClass);
 								keyReader = (jr, b) -> {
-									String keyStr = JasonReader.parseStringKey(jr, b);
-									return ensureNonNull(new JasonReader().buf(keyStr).parse(keyCtor.create()));
+									String keyStr = JsonReader.parseStringKey(jr, b);
+									return ensureNonNull(new JsonReader().buf(keyStr).parse(json, keyCtor.create()));
 								};
 							}
 						} else {
 							type = TYPE_MAP_FLAG + TYPE_OBJECT;
-							keyReader = JasonReader::parseStringKey;
+							keyReader = JsonReader::parseStringKey;
 						}
 					} else
 						type = TYPE_CUSTOM;
@@ -287,6 +287,7 @@ public final class Jason {
 					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ fieldName + " in " + klass.getName());
+					final BiFunction<Class<?>, Field, String> fieldNameFilter = json.fieldNameFilter;
 					final String fn = fieldNameFilter != null ? fieldNameFilter.apply(c, field) : fieldName;
 					put(j++, new FieldMeta(type, (int)offset, fn != null ? fn : fieldName, fieldClass, fieldCtor,
 							keyReader));
@@ -308,7 +309,7 @@ public final class Jason {
 		}
 
 		@SuppressWarnings("unchecked")
-		@Deprecated
+		@Deprecated // unsafe
 		public void setParserUnsafe(@Nullable Parser<?> p) { // DANGEROUS! only for special purpose
 			parser = (Parser<T>)p;
 		}
@@ -354,12 +355,24 @@ public final class Jason {
 	}
 
 	static final @NonNull Unsafe unsafe;
-	static final @NonNull MethodHandle getDeclaredFields0MH;
-	static final long OVERRIDE_OFFSET;
+	private static final @NonNull MethodHandle getDeclaredFields0MH;
+	private static final long OVERRIDE_OFFSET;
 	static final long STRING_VALUE_OFFSET;
 	static final boolean BYTE_STRING;
-	private static final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
 	static final int keyHashMultiplier = 0x100_0193; // 1677_7619 can be changed to another prime number
+	public static final Json instance = new Json();
+
+	private final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
+	public BiFunction<Class<?>, Field, String> fieldNameFilter;
+
+	@SuppressWarnings("MethodDoesntCallSuperMethod")
+	@Override
+	public Json clone() {
+		Json json = new Json();
+		json.classMetas.putAll(classMetas);
+		json.fieldNameFilter = fieldNameFilter;
+		return json;
+	}
 
 	static {
 		try {
@@ -388,14 +401,21 @@ public final class Jason {
 		}
 	}
 
+	public static @NonNull Unsafe getUnsafe() {
+		return unsafe;
+	}
+
 	static Field[] getDeclaredFields(Class<?> klass) {
 		try {
 			return (Field[])getDeclaredFields0MH.invokeExact(klass, false);
-		} catch (Throwable e) {
+		} catch (RuntimeException | Error e) {
+			throw e;
+		} catch (Throwable e) { // MethodHandle.invoke
 			throw new RuntimeException(e);
 		}
 	}
 
+	@SuppressWarnings("SameParameterValue")
 	static @Nullable Field getDeclaredField(Class<?> klass, String fieldName) {
 		for (Field field : getDeclaredFields(klass))
 			if (field.getName().equals(fieldName))
@@ -403,28 +423,14 @@ public final class Jason {
 		return null;
 	}
 
-	static <T extends AccessibleObject> @NonNull T setAccessible(@NonNull T ao) {
+	public static <T extends AccessibleObject> @NonNull T setAccessible(@NonNull T ao) {
 		unsafe.putBoolean(ao, OVERRIDE_OFFSET, true);
 		return ao;
 	}
 
-	@SuppressWarnings("null")
 	public static <T> @NonNull T ensureNonNull(@Nullable T obj) {
 		assert obj != null;
 		return obj;
-	}
-
-	public static @NonNull Unsafe getUnsafe() {
-		return unsafe;
-	}
-
-	@SuppressWarnings({"unchecked", "null"})
-	public static <T> @NonNull ClassMeta<T> getClassMeta(@NonNull Class<T> klass) {
-		return (ClassMeta<T>)classMetas.computeIfAbsent(klass, ClassMeta::new);
-	}
-
-	public static void clearClassMetas() {
-		classMetas.clear();
 	}
 
 //	public static void setKeyHashMultiplier(int multiplier) { // must be set before any other access
@@ -451,6 +457,15 @@ public final class Jason {
 		return str;
 	}
 
-	private Jason() {
+	@SuppressWarnings("unchecked")
+	public <T> @NonNull ClassMeta<T> getClassMeta(@NonNull Class<T> klass) {
+		ClassMeta<?> cm = classMetas.get(klass);
+		if (cm == null)
+			cm = classMetas.computeIfAbsent(klass, c -> new ClassMeta<>(this, c));
+		return (ClassMeta<T>)cm;
+	}
+
+	public void clearClassMetas() {
+		classMetas.clear();
 	}
 }

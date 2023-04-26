@@ -7,8 +7,8 @@ public final class TestJson5 {
 	private static int checkCount = 0;
 
 	private static void checkObj(String json5, String resJson) throws ReflectiveOperationException {
-		final Map<String, Object> map = JasonReader.local().buf(json5).parseMap(new LinkedHashMap<>());
-		final String res = JasonWriter.local().clear().setFlags(0x10_0000).setNoQuoteKey(true).write(map).toString();
+		final Map<String, Object> map = JsonReader.local().buf(json5).parseMap(new LinkedHashMap<>());
+		final String res = JsonWriter.local().clear().setFlags(0x10_0000).setNoQuoteKey(true).write(map).toString();
 		if (!res.equals(resJson))
 			throw new AssertionError("unmatched: " + json5 + " <---> " + res);
 		checkCount++;

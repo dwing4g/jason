@@ -1,16 +1,16 @@
 package jason;
 
 public class TestWriter {
-	static final JasonWriter jw = new JasonWriter();
-	static final JasonReader jason = new JasonReader();
+	static final JsonWriter jw = new JsonWriter();
+	static final JsonReader jr = new JsonReader();
 	static int count;
 
 	static void testInt(int d) {
 		jw.free().ensure(11);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		long d2 = jason.parseInt();
+		jr.buf(jw.toBytes());
+		long d2 = jr.parseInt();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 11)
@@ -22,8 +22,8 @@ public class TestWriter {
 		jw.free().ensure(11);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		long d2 = jason.parseInt();
+		jr.buf(jw.toBytes());
+		long d2 = jr.parseInt();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 11)
@@ -39,8 +39,8 @@ public class TestWriter {
 		jw.free().ensure(20);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		long d2 = jason.parseLong();
+		jr.buf(jw.toBytes());
+		long d2 = jr.parseLong();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 20)
@@ -54,8 +54,8 @@ public class TestWriter {
 		jw.free().ensure(20);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		long d2 = jason.parseLong();
+		jr.buf(jw.toBytes());
+		long d2 = jr.parseLong();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 20)
@@ -69,8 +69,8 @@ public class TestWriter {
 		jw.free().ensure(25);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		double d2 = jason.parseDouble();
+		jr.buf(jw.toBytes());
+		double d2 = jr.parseDouble();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 25)
@@ -82,8 +82,8 @@ public class TestWriter {
 		jw.free().ensure(25);
 		jw.write(d);
 		String ss = jw.toString();
-		jason.buf(jw.toBytes());
-		double d2 = jason.parseDouble();
+		jr.buf(jw.toBytes());
+		double d2 = jr.parseDouble();
 		if (d != d2)
 			throw new IllegalStateException("check err: " + d + " => '" + ss + "' => " + d2);
 		if (jw.size() > 25)

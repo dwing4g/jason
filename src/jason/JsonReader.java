@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
-import static jason.Jason.*;
+import static jason.Json.*;
 
 /*
 JSON5 additional features:
@@ -25,7 +25,7 @@ JSON5 additional features:
  YES : Single and multi-line comments are allowed.
   NO : Additional white space characters are allowed: \t,\n,\v(\x0b),\f(\x0c),\r, (\x20),\xa0,\u2028,\u2029,\uFEFF
 */
-public final class JasonReader {
+public final class JsonReader {
 	private static final @NonNull Double NEGATIVE_INFINITY = Double.NEGATIVE_INFINITY;
 	private static final @NonNull Double POSITIVE_INFINITY = Double.POSITIVE_INFINITY;
 
@@ -64,12 +64,12 @@ public final class JasonReader {
 			1e+288, 1e+289, 1e+290, 1e+291, 1e+292, 1e+293, 1e+294, 1e+295, 1e+296, 1e+297, 1e+298, 1e+299, 1e+300,
 			1e+301, 1e+302, 1e+303, 1e+304, 1e+305, 1e+306, 1e+307, 1e+308};
 
-	private static final @NonNull ThreadLocal<JasonReader> localReaders = ensureNonNull(
-			ThreadLocal.withInitial(JasonReader::new));
+	private static final @NonNull ThreadLocal<JsonReader> localReaders = ensureNonNull(
+			ThreadLocal.withInitial(JsonReader::new));
 	private static String[] poolStrs;
 	private static int poolSize = 1024;
 
-	public static @NonNull JasonReader local() {
+	public static @NonNull JsonReader local() {
 		return ensureNonNull(localReaders.get());
 	}
 
@@ -120,19 +120,19 @@ public final class JasonReader {
 	private int pos;
 	private char[] tmp; // for parseString & parseStringNoQuot
 
-	public JasonReader() {
+	public JsonReader() {
 	}
 
-	public JasonReader(byte[] b) {
+	public JsonReader(byte[] b) {
 		buf = b;
 	}
 
-	public JasonReader(byte[] b, int p) {
+	public JsonReader(byte[] b, int p) {
 		buf = b;
 		pos = p;
 	}
 
-	public @NonNull JasonReader reset() {
+	public @NonNull JsonReader reset() {
 		buf = null;
 		pos = 0;
 		tmp = null;
@@ -143,19 +143,19 @@ public final class JasonReader {
 		return buf;
 	}
 
-	public @NonNull JasonReader buf(@NonNull String s) {
+	public @NonNull JsonReader buf(@NonNull String s) {
 		buf = s.getBytes(StandardCharsets.UTF_8);
 		pos = 0;
 		return this;
 	}
 
-	public @NonNull JasonReader buf(byte[] b) {
+	public @NonNull JsonReader buf(byte[] b) {
 		buf = b;
 		pos = 0;
 		return this;
 	}
 
-	public @NonNull JasonReader buf(byte[] b, int p) {
+	public @NonNull JsonReader buf(byte[] b, int p) {
 		buf = b;
 		pos = p;
 		return this;
@@ -165,12 +165,12 @@ public final class JasonReader {
 		return pos;
 	}
 
-	public @NonNull JasonReader pos(int p) {
+	public @NonNull JsonReader pos(int p) {
 		pos = p;
 		return this;
 	}
 
-	public @NonNull JasonReader pos(@NonNull Pos p) {
+	public @NonNull JsonReader pos(@NonNull Pos p) {
 		pos = p.pos;
 		return this;
 	}
@@ -179,23 +179,23 @@ public final class JasonReader {
 		return tmp;
 	}
 
-	public @NonNull JasonReader tmp(char[] t) {
+	public @NonNull JsonReader tmp(char[] t) {
 		tmp = t;
 		return this;
 	}
 
-	public @NonNull JasonReader tmp(int size) {
+	public @NonNull JsonReader tmp(int size) {
 		if (tmp == null || tmp.length < size)
 			tmp = new char[size];
 		return this;
 	}
 
-	public @NonNull JasonReader skip(int n) {
+	public @NonNull JsonReader skip(int n) {
 		pos += n;
 		return this;
 	}
 
-	public @NonNull JasonReader trySkipBom() {
+	public @NonNull JsonReader trySkipBom() {
 		int p = pos;
 		if (p + 2 < buf.length && buf[p] == (byte)0xef && buf[p + 1] == (byte)0xbb && buf[p + 2] == (byte)0xbf)
 			pos = p + 3;
@@ -335,20 +335,24 @@ public final class JasonReader {
 		return c;
 	}
 
-	@SuppressWarnings("null")
 	public <T> @Nullable Collection<T> parseArray(@Nullable Collection<T> c, @NonNull Class<T> elemClass)
 			throws ReflectiveOperationException {
+		return parseArray(Json.instance, c, elemClass);
+	}
+
+	public <T> @Nullable Collection<T> parseArray(@NonNull Json json, @Nullable Collection<T> c,
+												  @NonNull Class<T> elemClass) throws ReflectiveOperationException {
 		if (next() != '[')
 			return c;
 		if (c == null)
 			c = new ArrayList<>();
-		ClassMeta<T> classMeta = getClassMeta(elemClass);
+		ClassMeta<T> classMeta = json.getClassMeta(elemClass);
 		Parser<T> parser = classMeta.parser;
 		if (parser != null) {
 			for (int b = skipNext(); b != ']'; b = skipVar(']'))
 				c.add(parser.parse(this, classMeta, null, null));
 		} else {
-			if (classMeta.isAbstract)
+			if (ClassMeta.isAbstract(elemClass))
 				throw new InstantiationException("abstract element class: " + elemClass.getName());
 			for (int b = skipNext(); b != ']'; b = skipVar(']'))
 				c.add(parse0(classMeta.ctor.create(), classMeta));
@@ -374,11 +378,15 @@ public final class JasonReader {
 	}
 
 	public <T> @Nullable T parse(@Nullable Class<T> klass) throws ReflectiveOperationException {
-		return klass != null ? parse(null, getClassMeta(klass)) : null;
+		return klass != null ? parse((T)null, Json.instance.getClassMeta(klass)) : null;
+	}
+
+	public <T> @Nullable T parse(@NonNull Json json, @Nullable Class<T> klass) throws ReflectiveOperationException {
+		return klass != null ? parse(json, null, json.getClassMeta(klass)) : null;
 	}
 
 	public <T> @Nullable T parse(@Nullable ClassMeta<T> classMeta) throws ReflectiveOperationException {
-		return parse(null, classMeta);
+		return parse((T)null, classMeta);
 	}
 
 	public <T> @Nullable T parse(@Nullable T obj) throws ReflectiveOperationException {
@@ -387,23 +395,37 @@ public final class JasonReader {
 
 	public <T> @Nullable T parse(@Nullable T obj, @Nullable Class<? super T> klass)
 			throws ReflectiveOperationException {
-		return parse(obj, klass != null ? getClassMeta(klass) : null);
+		return parse(obj, klass != null ? Json.instance.getClassMeta(klass) : null);
+	}
+
+	public <T> @Nullable T parse(@NonNull Json json, @Nullable T obj, @Nullable Class<? super T> klass)
+			throws ReflectiveOperationException {
+		return parse(json, obj, klass != null ? json.getClassMeta(klass) : null);
+	}
+
+	public <T> @Nullable T parse(@Nullable T obj, @Nullable ClassMeta<? super T> classMeta)
+			throws ReflectiveOperationException {
+		return parse(Json.instance, obj, classMeta);
+	}
+
+	public <T> @Nullable T parse(@NonNull Json json, @Nullable T obj) throws ReflectiveOperationException {
+		return parse(json, obj, (ClassMeta<T>)null);
 	}
 
 	@SuppressWarnings("unchecked")
-	public <T> @Nullable T parse(@Nullable T obj, @Nullable ClassMeta<? super T> classMeta)
+	public <T> @Nullable T parse(@NonNull Json json, @Nullable T obj, @Nullable ClassMeta<? super T> classMeta)
 			throws ReflectiveOperationException {
 		if (classMeta == null) {
 			if (obj == null)
 				return null;
-			classMeta = getClassMeta((Class<T>)obj.getClass());
+			classMeta = json.getClassMeta((Class<T>)obj.getClass());
 		}
 		Parser<? super T> parser = classMeta.parser;
 		if (parser != null)
 			return (T)parser.parse0(this, classMeta, obj, null);
 		if (obj != null)
 			return parse0(obj, classMeta);
-		if (classMeta.isAbstract)
+		if (ClassMeta.isAbstract(classMeta.klass))
 			throw new InstantiationException("abstract class: " + classMeta.klass.getName());
 		return parse0((T)classMeta.ctor.create(), classMeta);
 	}
@@ -463,9 +485,9 @@ public final class JasonReader {
 					if (subClass == fm.klass) {
 						subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(subClass);
+							fm.classMeta = subClassMeta = classMeta.json.getClassMeta(subClass);
 					} else
-						subClassMeta = getClassMeta(subClass);
+						subClassMeta = classMeta.json.getClassMeta(subClass);
 					Parser<?> parser = subClassMeta.parser;
 					if (parser != null) {
 						Object newSubObj = parser.parse0(this, subClassMeta, subObj, obj);
@@ -480,12 +502,12 @@ public final class JasonReader {
 				} else {
 					ClassMeta<?> subClassMeta = fm.classMeta;
 					if (subClassMeta == null)
-						fm.classMeta = subClassMeta = getClassMeta(fm.klass);
+						fm.classMeta = subClassMeta = classMeta.json.getClassMeta(fm.klass);
 					Parser<?> parser = subClassMeta.parser;
 					if (parser != null)
 						subObj = parser.parse0(this, subClassMeta, null, obj);
 					else {
-						if (subClassMeta.isAbstract)
+						if (ClassMeta.isAbstract(subClassMeta.klass))
 							throw new InstantiationException(
 									"abstract field: " + fm.getName() + " in " + classMeta.klass.getName());
 						subObj = parse0(subClassMeta.ctor.create(), subClassMeta);
@@ -533,7 +555,7 @@ public final class JasonReader {
 							Collection<Object> c2 = ensureNonNull((Collection<Object>)ctor.create());
 							unsafe.putObject(obj, offset, c = c2);
 						} else {
-							ClassMeta<?> cm = getClassMeta(fm.klass);
+							ClassMeta<?> cm = classMeta.json.getClassMeta(fm.klass);
 							Parser<?> parser = cm.parser;
 							if (parser == null)
 								throw new InstantiationException("abstract Collection field: " + fm.getName() + " in "
@@ -597,13 +619,13 @@ public final class JasonReader {
 					case TYPE_CUSTOM:
 						ClassMeta<?> subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
+							fm.classMeta = subClassMeta = classMeta.json.getClassMeta(fm.klass);
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
 							for (; b != ']'; b = skipVar(']'))
 								c.add(parser.parse0(this, subClassMeta, null, c));
 						} else {
-							if (subClassMeta.isAbstract)
+							if (ClassMeta.isAbstract(subClassMeta.klass))
 								throw new InstantiationException(
 										"abstract element class: " + fm.getName() + " in " + classMeta.klass.getName());
 							for (; b != ']'; b = skipVar(']'))
@@ -626,7 +648,7 @@ public final class JasonReader {
 							Map<Object, Object> m2 = ensureNonNull((Map<Object, Object>)ctor.create());
 							unsafe.putObject(obj, offset, m = m2);
 						} else {
-							ClassMeta<?> cm = getClassMeta(fm.klass);
+							ClassMeta<?> cm = classMeta.json.getClassMeta(fm.klass);
 							Parser<?> parser = cm.parser;
 							if (parser == null)
 								throw new InstantiationException(
@@ -714,7 +736,7 @@ public final class JasonReader {
 					case TYPE_CUSTOM:
 						ClassMeta<?> subClassMeta = fm.classMeta;
 						if (subClassMeta == null)
-							fm.classMeta = subClassMeta = getClassMeta(fm.klass);
+							fm.classMeta = subClassMeta = classMeta.json.getClassMeta(fm.klass);
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
 							for (; b != '}'; b = skipVar('}')) {
@@ -723,7 +745,7 @@ public final class JasonReader {
 								m.put(k, parser.parse0(this, subClassMeta, null, m));
 							}
 						} else {
-							if (subClassMeta.isAbstract)
+							if (ClassMeta.isAbstract(subClassMeta.klass))
 								throw new InstantiationException(
 										"abstract value class: " + fm.getName() + " in " + classMeta.klass.getName());
 							for (; b != '}'; b = skipVar('}')) {
@@ -774,12 +796,12 @@ public final class JasonReader {
 		}
 	}
 
-	static @NonNull String parseStringKey(@NonNull JasonReader jr, int b) throws ReflectiveOperationException {
+	static @NonNull String parseStringKey(@NonNull JsonReader jr, int b) throws ReflectiveOperationException {
 		String key = b == '"' || b == '\'' ? jr.parseString(true) : jr.parseStringNoQuot();
 		return key != null ? key : "";
 	}
 
-	static @NonNull Boolean parseBooleanKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Boolean parseBooleanKey(@NonNull JsonReader jr, int b) {
 		boolean v;
 		if (b == '"' || b == '\'') {
 			v = jr.buf[++jr.pos] == 't';
@@ -789,7 +811,7 @@ public final class JasonReader {
 		return v;
 	}
 
-	static @NonNull Byte parseByteKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Byte parseByteKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -800,7 +822,7 @@ public final class JasonReader {
 		return (byte)v;
 	}
 
-	static @NonNull Short parseShortKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Short parseShortKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -811,7 +833,7 @@ public final class JasonReader {
 		return (short)v;
 	}
 
-	static @NonNull Character parseCharKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Character parseCharKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -822,7 +844,7 @@ public final class JasonReader {
 		return (char)v;
 	}
 
-	static @NonNull Integer parseIntegerKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Integer parseIntegerKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -833,7 +855,7 @@ public final class JasonReader {
 		return v;
 	}
 
-	static @NonNull Long parseLongKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Long parseLongKey(@NonNull JsonReader jr, int b) {
 		long v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -844,7 +866,7 @@ public final class JasonReader {
 		return v;
 	}
 
-	static @NonNull Float parseFloatKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Float parseFloatKey(@NonNull JsonReader jr, int b) {
 		double v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -855,7 +877,7 @@ public final class JasonReader {
 		return (float)v;
 	}
 
-	static @NonNull Double parseDoubleKey(@NonNull JasonReader jr, int b) {
+	static @NonNull Double parseDoubleKey(@NonNull JsonReader jr, int b) {
 		double v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -923,7 +945,7 @@ public final class JasonReader {
 						if ((b & 0xfc00) == 0xd800 && buffer[p] == '\\' && buffer[p + 1] == 'u'
 								&& ((len = parseHex4(buffer, p + 2)) & 0xfc00) == 0xdc00) {
 							p += 6;
-							b = ((b & 0x3ff) << 10) + (len & 0x3ff) + 0x10000;
+							b = (b << 10) + len + (0x10000 - (0xd800 << 10) - 0xdc00);
 							t[n++] = (byte)(0xf0 + (b >> 18)); // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
 							t[n++] = (byte)(0x80 + ((b >> 12) & 0x3f));
 						} else
@@ -936,7 +958,7 @@ public final class JasonReader {
 					} else
 						t[n++] = (byte)b; // 0xxx xxxx
 				} else
-					t[n++] = b >= 0x20 ? ESCAPE[b - 0x20] : (byte)(b & 0xff);
+					t[n++] = b >= 0x20 ? ESCAPE[b - 0x20] : (byte)b;
 			} else
 				t[n++] = (byte)b;
 		}
@@ -960,7 +982,7 @@ public final class JasonReader {
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
 		}
-		int len = p - begin, n = len, c, d;
+		int len = p - begin, n = len, c, d, f;
 		for (; (b = buffer[p++]) != e; len++)
 			if (b == '\\' && buffer[p++] == 'u')
 				p += 4;
@@ -982,16 +1004,24 @@ public final class JasonReader {
 				} else
 					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b & 0xff);
 			} else if (b >= 0)
-				t[n++] = (char)b;
+				t[n++] = (char)b; // 0xxx xxxx
 			else if (b >= -0x20) {
-				if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
-					t[n++] = (char)(((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
+				if (b >= -0x10) {
+					if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40 && (f = buffer[p + 2]) < -0x40) {
+						b = (b << 18) + (c << 12) + (d << 6) + f + ((0x10 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80 - 0x10000);
+						t[n++] = (char)(0xd800 + ((b >> 10) & 0x3ff)); // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
+						t[n++] = (char)(0xdc00 + (b & 0x3ff));
+						p += 3;
+					} else
+						t[n++] = (char)(b & 0xff); // ignore malformed utf-8
+				} else if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
+					t[n++] = (char)((b << 12) + (c << 6) + d + ((0x20 << 12) + (0x80 << 6) + 0x80)); // 1110 xxxx  10xx xxxx  10xx xxxx
 					p += 2;
 				} else
 					t[n++] = (char)(b & 0xff); // ignore malformed utf-8
 			} else if ((c = buffer[p]) < -0x40) {
 				p++;
-				t[n++] = (char)(((b & 0x1f) << 6) + (c & 0x3f));
+				t[n++] = (char)((b << 6) + c + ((0x40 << 6) + 0x80)); // 110x xxxx  10xx xxxx
 			} else
 				t[n++] = (char)(b & 0xff); // ignore malformed utf-8
 		}
@@ -1007,7 +1037,7 @@ public final class JasonReader {
 			if ((b ^ '\\') < 1) // '\\' or multibyte char
 				break; // jump to the slow path below
 		}
-		int len = p - begin, n = len, c, d;
+		int len = p - begin, n = len, c, d, e;
 		for (; ((((b = buffer[p++]) & 0xff) - ' ' - 1) ^ (':' - ' ' - 1)) > 0; len++) // (b & 0xff) > ' ' && b != ':'
 			if (b == '\\' && buffer[p++] == 'u')
 				p += 4;
@@ -1029,16 +1059,24 @@ public final class JasonReader {
 				} else
 					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b);
 			} else if (b < 0x80)
-				t[n++] = (char)b;
+				t[n++] = (char)b; // 0xxx xxxx
 			else if (b > 0xdf) {
-				if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
-					t[n++] = (char)(((b & 0xf) << 12) + ((c & 0x3f) << 6) + (d & 0x3f));
+				if (b > 0xef) {
+					if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40 && (e = buffer[p + 2]) < -0x40) {
+						b = (b << 18) + (c << 12) + (d << 6) + e + ((-0xf0 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80 - 0x10000);
+						t[n++] = (char)(0xd800 + ((b >> 10) & 0x3ff)); // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
+						t[n++] = (char)(0xdc00 + (b & 0x3ff));
+						p += 3;
+					} else
+						t[n++] = (char)(b & 0xff); // ignore malformed utf-8
+				} else if ((c = buffer[p]) < -0x40 && (d = buffer[p + 1]) < -0x40) {
+					t[n++] = (char)((b << 12) + (c << 6) + d + ((-0xe0 << 12) + (0x80 << 6) + 0x80)); // 1110 xxxx  10xx xxxx  10xx xxxx
 					p += 2;
 				} else
 					t[n++] = (char)b; // ignore malformed utf-8
 			} else if ((c = buffer[p]) < -0x40) {
 				p++;
-				t[n++] = (char)(((b & 0x1f) << 6) + (c & 0x3f));
+				t[n++] = (char)((b << 6) + c + ((-0xc0 << 6) + 0x80)); // 110x xxxx  10xx xxxx
 			} else
 				t[n++] = (char)b; // ignore malformed utf-8
 		}
@@ -1082,7 +1120,7 @@ public final class JasonReader {
 			if (b == '.') {
 				b = buffer[++p];
 				if (useDouble == 0) {
-					useDouble = 1; //NOSONAR
+					useDouble = 1;
 					for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 						if (i >= 0xCCC_CCCC)
 							break;
@@ -1182,7 +1220,7 @@ public final class JasonReader {
 			if (b == '.') {
 				b = buffer[++p];
 				if (useDouble == 0) {
-					useDouble = 1; //NOSONAR
+					useDouble = 1;
 					for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 						if (i > 0x1F_FFFF_FFFF_FFFFL) // 2^53 - 1 for fast path
 							break;
@@ -1282,7 +1320,7 @@ public final class JasonReader {
 			if (b == '.') {
 				b = buffer[++p];
 				if (useDouble == 0) {
-					useDouble = 1; //NOSONAR
+					useDouble = 1;
 					for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 						if (i > 0x1F_FFFF_FFFF_FFFFL) // 2^53 - 1 for fast path
 							break;
@@ -1383,7 +1421,7 @@ public final class JasonReader {
 			if (b == '.') {
 				b = buffer[++p];
 				if (useDouble == 0) {
-					useDouble = 1; //NOSONAR
+					useDouble = 1;
 					for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 						if (i > 0x1F_FFFF_FFFF_FFFFL) // 2^53 - 1 for fast path
 							break;

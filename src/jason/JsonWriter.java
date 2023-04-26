@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
-import static jason.Jason.*;
+import static jason.Json.*;
 
-public final class JasonWriter {
+public final class JsonWriter {
 	//@formatter:off
 	private static final long DOUBLE_SIGN_MASK        = 0x8000_0000_0000_0000L;
 	private static final long DOUBLE_EXP_MASK         = 0x7FF0_0000_0000_0000L;
@@ -105,10 +105,10 @@ public final class JasonWriter {
 		Block next; // always non-null
 	}
 
-	private static final @NonNull ThreadLocal<JasonWriter> localWriters = ensureNonNull(
-			ThreadLocal.withInitial(JasonWriter::new));
+	private static final @NonNull ThreadLocal<JsonWriter> localWriters = ensureNonNull(
+			ThreadLocal.withInitial(JsonWriter::new));
 
-	public static @NonNull JasonWriter local() {
+	public static @NonNull JsonWriter local() {
 		return ensureNonNull(localWriters.get());
 	}
 
@@ -124,11 +124,11 @@ public final class JasonWriter {
 	private int flags = 0x10_0000; // (depth=16) << 16
 	private int tabs; // current depth
 
-	public JasonWriter() {
+	public JsonWriter() {
 		this(null);
 	}
 
-	public JasonWriter(@Nullable BlockAllocator allocator) {
+	public JsonWriter(@Nullable BlockAllocator allocator) {
 		if (allocator == null) {
 			allocator = minLen -> {
 				Block block = new Block();
@@ -147,8 +147,8 @@ public final class JasonWriter {
 		return flags >>> 16;
 	}
 
-	public @NonNull JasonWriter setDepthLimit(int depth) {
-		flags = (flags & 0xffff) | (depth << 16);
+	public @NonNull JsonWriter setDepthLimit(int depth) {
+		flags = (flags & FLAG_ALL) | (depth << 16);
 		return this;
 	}
 
@@ -156,8 +156,13 @@ public final class JasonWriter {
 		return flags & FLAG_ALL;
 	}
 
-	public @NonNull JasonWriter setFlags(int flags) {
+	public @NonNull JsonWriter setFlags(int flags) {
 		this.flags = this.flags & ~FLAG_ALL | flags & FLAG_ALL;
+		return this;
+	}
+
+	public @NonNull JsonWriter setFlagsAndDepthLimit(int flags, int depth) {
+		this.flags = (flags & FLAG_ALL) | (depth << 16);
 		return this;
 	}
 
@@ -165,7 +170,7 @@ public final class JasonWriter {
 		return (flags & FLAG_PRETTY_FORMAT) != 0;
 	}
 
-	public @NonNull JasonWriter setPrettyFormat(boolean enable) {
+	public @NonNull JsonWriter setPrettyFormat(boolean enable) {
 		if (enable)
 			flags |= FLAG_PRETTY_FORMAT;
 		else
@@ -177,7 +182,7 @@ public final class JasonWriter {
 		return (flags & FLAG_NO_QUOTE_KEY) != 0;
 	}
 
-	public @NonNull JasonWriter setNoQuoteKey(boolean enable) {
+	public @NonNull JsonWriter setNoQuoteKey(boolean enable) {
 		if (enable)
 			flags |= FLAG_NO_QUOTE_KEY;
 		else
@@ -189,7 +194,7 @@ public final class JasonWriter {
 		return (flags & FLAG_WRITE_NULL) != 0;
 	}
 
-	public @NonNull JasonWriter setWriteNull(boolean enable) {
+	public @NonNull JsonWriter setWriteNull(boolean enable) {
 		if (enable)
 			flags |= FLAG_WRITE_NULL;
 		else
@@ -201,7 +206,7 @@ public final class JasonWriter {
 		return (flags & FLAG_WRAP_ELEMENT) != 0;
 	}
 
-	public @NonNull JasonWriter setWrapElement(boolean enable) {
+	public @NonNull JsonWriter setWrapElement(boolean enable) {
 		if (enable)
 			flags |= FLAG_WRAP_ELEMENT;
 		else
@@ -209,7 +214,7 @@ public final class JasonWriter {
 		return this;
 	}
 
-	public @NonNull JasonWriter clear() { // leave the empty head block
+	public @NonNull JsonWriter clear() { // leave the empty head block
 		Block head = ensureNonNull(tail.next);
 		for (Block block = head.next; block != head; block = block.next)
 			allocator.free(ensureNonNull(block));
@@ -222,15 +227,14 @@ public final class JasonWriter {
 		return this;
 	}
 
-	@SuppressWarnings("null")
-	public @NonNull JasonWriter free() { // can be reused by ensure()
+	public @NonNull JsonWriter free() { // can be reused by ensure()
 		for (Block block = tail.next; ; block = block.next) {
 			allocator.free(ensureNonNull(block));
 			if (block == tail)
 				break;
 		}
 		//noinspection ConstantConditions
-		tail = null; //NOSONAR
+		tail = null;
 		buf = EMPTY;
 		pos = 0;
 		size = 0;
@@ -316,7 +320,11 @@ public final class JasonWriter {
 			buf[pos++] = '\t';
 	}
 
-	public @NonNull JasonWriter write(@Nullable Object obj) {
+	public @NonNull JsonWriter write(@Nullable Object obj) {
+		return write(Json.instance, obj);
+	}
+
+	public @NonNull JsonWriter write(@NonNull Json json, @Nullable Object obj) {
 		if (obj == null) {
 			ensure(5);
 			buf[pos++] = 'n';
@@ -373,6 +381,7 @@ public final class JasonWriter {
 			write(((Double)obj).doubleValue());
 			break;
 		case TYPE_STRING:
+			//noinspection LocalVariableUsedAndDeclaredInDifferentSwitchBranches
 			String s = (String)obj;
 			ensure(s.length() * 6 + 3); // "xxxxxx"
 			write(s, false);
@@ -410,7 +419,7 @@ public final class JasonWriter {
 						if (comma)
 							buf[pos++] = ',';
 						writeNewLineTabs();
-						write(o);
+						write(json, o);
 						comma = true;
 					}
 					tabs--;
@@ -420,7 +429,7 @@ public final class JasonWriter {
 					for (Object o : (Collection<?>)obj) {
 						if (comma)
 							buf[pos++] = ',';
-						write(o);
+						write(json, o);
 						comma = true;
 					}
 				}
@@ -437,7 +446,7 @@ public final class JasonWriter {
 						if (comma)
 							buf[pos++] = ',';
 						writeNewLineTabs();
-						write(Array.get(obj, i));
+						write(json, Array.get(obj, i));
 						comma = true;
 					}
 					tabs--;
@@ -447,7 +456,7 @@ public final class JasonWriter {
 					for (int i = 0, n = Array.getLength(obj); i < n; i++) {
 						if (comma)
 							buf[pos++] = ',';
-						write(Array.get(obj, i));
+						write(json, Array.get(obj, i));
 						comma = true;
 					}
 				}
@@ -466,17 +475,17 @@ public final class JasonWriter {
 						if (comma)
 							buf[pos++] = ',';
 						Object k = e.getKey();
-						if (k == null || Jason.ClassMeta.isInKeyReaderMap(k.getClass())) {
+						if (k == null || Json.ClassMeta.isInKeyReaderMap(k.getClass())) {
 							s = String.valueOf(k);
 							ensure(s.length() * 6 + 3); // "xxxxxx":
 							write(s, noQuote && s.indexOf(':') < 0);
 						} else {
-							byte[] keyStr = new JasonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(k).toBytes();
+							byte[] keyStr = new JsonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(json, k).toBytes();
 							ensure(keyStr.length * 6 + 3); // "xxxxxx":
 							write(keyStr, false);
 						}
 						buf[pos++] = ':';
-						write(value);
+						write(json, value);
 						comma = true;
 					}
 					ensure(2);
@@ -493,18 +502,18 @@ public final class JasonWriter {
 						}
 						writeNewLineTabs();
 						Object k = e.getKey();
-						if (k == null || Jason.ClassMeta.isInKeyReaderMap(k.getClass())) {
+						if (k == null || Json.ClassMeta.isInKeyReaderMap(k.getClass())) {
 							s = String.valueOf(k);
 							ensure(s.length() * 6 + 4); // "xxxxxx":_
 							write(s, noQuote && s.indexOf(':') < 0);
 						} else {
-							byte[] keyStr = new JasonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(k).toBytes();
+							byte[] keyStr = new JsonWriter().setFlags(FLAG_NO_QUOTE_KEY).write(json, k).toBytes();
 							ensure(keyStr.length * 6 + 4); // "xxxxxx":_
 							write(keyStr, false);
 						}
 						buf[pos++] = ':';
 						buf[pos++] = ' ';
-						write(value);
+						write(json, value);
 					}
 					if (comma) {
 						tabs--;
@@ -514,7 +523,7 @@ public final class JasonWriter {
 				buf[pos++] = '}';
 				break;
 			}
-			ClassMeta<?> classMeta = getClassMeta(klass);
+			ClassMeta<?> classMeta = json.getClassMeta(klass);
 			Writer<?> writer = classMeta.writer;
 			if (writer != null) {
 				writer.write0(this, classMeta, obj);
@@ -607,7 +616,7 @@ public final class JasonWriter {
 					pos = posBegin;
 					continue;
 				default:
-					write(subObj);
+					write(json, subObj);
 					break;
 				}
 				comma = true;
@@ -654,19 +663,20 @@ public final class JasonWriter {
 				if (b >= 0) { // 0xxx xxxx
 					res[p++] = (char)b;
 					i++;
-				} else if (b >= -0x20) { // 1110 xxxx  10xx xxxx  10xx xxxx
+				} else if (b >= -0x20) {
 					if (b >= -0x10) { // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
-						b = ((b & 7) << 18) + ((buffer[i + 1] & 0x3f) << 12) + ((buffer[i + 2] & 0x3f) << 6) +
-								(buffer[i + 3] & 0x3f) - 0x10000;
+						b = (b << 18) + (buffer[i + 1] << 12) + (buffer[i + 2] << 6) + buffer[i + 3]
+								+ ((0x10 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80 - 0x10000);
 						res[p++] = (char)(0xd800 + ((b >> 10) & 0x3ff));
 						res[p++] = (char)(0xdc00 + (b & 0x3ff));
 						i += 4;
-					} else {
-						res[p++] = (char)(((b & 0xf) << 12) + ((buffer[i + 1] & 0x3f) << 6) + (buffer[i + 2] & 0x3f));
+					} else { // 1110 xxxx  10xx xxxx  10xx xxxx
+						res[p++] = (char)((b << 12) + (buffer[i + 1] << 6) + buffer[i + 2]
+								+ ((0x20 << 12) + (0x80 << 6) + 0x80));
 						i += 3;
 					}
 				} else { // 110x xxxx  10xx xxxx
-					res[p++] = (char)(((b & 0x1f) << 6) + (buffer[i + 1] & 0x3f));
+					res[p++] = (char)((b << 6) + buffer[i + 1] + ((0x40 << 6) + 0x80));
 					i += 2;
 				}
 			}
@@ -810,7 +820,8 @@ public final class JasonWriter {
 		else if (p1 <    100_0000) kappa = 6;
 		else if (p1 <   1000_0000) kappa = 7;
 		else if (p1 < 1_0000_0000) kappa = 8;
-		else kappa = 9; // will not reach 10 digits: if (p1 < 10_0000_0000) kappa = 9; kappa = 10; @formatter:on
+		else kappa = 9; // will not reach 10 digits: if (p1 < 10_0000_0000) kappa = 9; kappa = 10;
+		// @formatter:on
 		do {
 			switch (kappa) { //@formatter:off
 				case 9:  v = p1 / 1_0000_0000; p1 %= 1_0000_0000; break;
@@ -1201,7 +1212,7 @@ public final class JasonWriter {
 					buf[pos++] = (byte)(0xc0 + (c >> 6)); // 110x xxxx  10xx xxxx
 				else {
 					if ((c & 0xfc00) == 0xd800 && i + 1 < n && ((d = str.charAt(i + 1)) & 0xfc00) == 0xdc00) { // UTF-16 surrogate
-						c = ((c & 0x3ff) << 10) + (d & 0x3ff) + 0x10000;
+						c = (c << 10) + d + (0x10000 - (0xd800 << 10) - 0xdc00);
 						i++;
 						buf[pos++] = (byte)(0xf0 + (c >> 18)); // 1111 0xxx  10xx xxxx  10xx xxxx  10xx xxxx
 						buf[pos++] = (byte)(0x80 + ((c >> 12) & 0x3f));

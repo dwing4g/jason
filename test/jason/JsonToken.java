@@ -1,6 +1,6 @@
 package jason;
 
-public final class JasonToken {
+public final class JsonToken {
 	public static final int TYPE_SHIFT = 30;
 	public static final int TYPE_PRIMITIVE = 0; // number, boolean(true/false) or null
 	public static final int TYPE_STRING = 1 << TYPE_SHIFT;
@@ -112,7 +112,7 @@ public final class JasonToken {
 		return outPos;
 	}
 
-	private JasonToken() {
+	private JsonToken() {
 	}
 
 	public static void main(String[] args) {

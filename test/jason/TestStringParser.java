@@ -7,15 +7,16 @@ public final class TestStringParser {
 		String[] strs = {"\"\"", "\"abc\"", "\"abcdefghijklmn\"", "\"\\\"\\\\\\/\\b\\f\\n\\r\\t\"",
 				"\"\\u0123\\u4567\\u89ab\\ucdef\"", "\"opqrst\\r\\nuvwxyz\"", "\"《汉字》\"",
 				"\"\\u0030\\'\\uABCD\\u00EF\""};
+		//noinspection UnnecessaryUnicodeEscape
 		String[] chks = {"", "abc", "abcdefghijklmn", "\"\\/\b\f\n\r\t", "\u0123\u4567\u89ab\ucdef",
 				"opqrst\r\nuvwxyz", "《汉字》", "\u0030'\uABCD\u00EF"};
 		byte[][] tests = new byte[8][];
 		for (int i = 0; i < 8; i++)
 			tests[i] = strs[i].getBytes(StandardCharsets.UTF_8);
 
-		JasonReader jason = new JasonReader();
+		JsonReader jr = new JsonReader();
 		for (int j = 0; j < 8; j++) {
-			String s = jason.buf(tests[j]).parseString();
+			String s = jr.buf(tests[j]).parseString();
 			if (s == null)
 				throw new RuntimeException();
 			if (!s.equals(chks[j])) {
@@ -32,7 +33,7 @@ public final class TestStringParser {
 		long r = 0;
 		for (int i = 0; i < 2_000_000; i++)
 			for (int j = 0; j < 8; j++) {
-				String s = jason.buf(tests[j]).parseString();
+				String s = jr.buf(tests[j]).parseString();
 				if (s == null)
 					throw new RuntimeException();
 				r += s.length();
