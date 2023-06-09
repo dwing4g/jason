@@ -34,7 +34,7 @@ public final class Json implements Cloneable {
 		Object parse(@NonNull JsonReader jr, int b) throws ReflectiveOperationException;
 	}
 
-	interface Creator<T> {
+	public interface Creator<T> {
 		T create() throws ReflectiveOperationException;
 	}
 
@@ -298,6 +298,10 @@ public final class Json implements Cloneable {
 		static int getType(Class<?> klass) {
 			Integer type = typeMap.get(klass);
 			return type != null ? type : TYPE_CUSTOM;
+		}
+
+		public @NonNull Creator<T> getCtor() {
+			return ctor;
 		}
 
 		public @Nullable Parser<T> getParser() {
