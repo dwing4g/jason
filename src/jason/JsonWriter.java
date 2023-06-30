@@ -803,7 +803,7 @@ public final class JsonWriter {
 			f = umulHigh9(f, cmkf);
 			pf = umulHigh9(pf, cmkf);
 			mf = umulHigh9(mf, cmkf);
-		} else {
+		} else { // for JDK8-
 			f = umulHigh(f, cmkf);
 			pf = umulHigh(pf, cmkf);
 			mf = umulHigh(mf, cmkf);
@@ -1216,6 +1216,38 @@ public final class JsonWriter {
 	public void write(final @NonNull String str, final boolean noQuote) {
 		if (!noQuote)
 			buf[pos++] = '"';
+		if (BYTE_STRING && unsafe.getByte(str, STRING_CODE_OFFSET) == 0) // for JDK9+
+			writeLatin1((byte[])unsafe.getObject(str, STRING_VALUE_OFFSET));
+		else // for JDK8-
+			write8(str);
+		if (!noQuote)
+			buf[pos++] = '"';
+	}
+
+	private void writeLatin1(final byte @NonNull [] str) {
+		for (int c : str) {
+			if (c >= 0) {
+				byte b = ESCAPE[c];
+				if (b == 0)
+					buf[pos++] = (byte)c; // 0xxx xxxx
+				else {
+					buf[pos++] = '\\';
+					buf[pos++] = b;
+					if (b == 'u') {
+						buf[pos++] = '0';
+						buf[pos++] = '0';
+						buf[pos++] = (byte)('0' + (c >> 4));
+						buf[pos++] = (byte)num2Hex(c & 0xf);
+					}
+				}
+			} else {
+				buf[pos++] = (byte)(0xc0 + ((c >> 6) & 3)); // 110x xxxx  10xx xxxx
+				buf[pos++] = (byte)(0x80 + (c & 0x3f));
+			}
+		}
+	}
+
+	private void write8(final @NonNull String str) {
 		for (int i = 0, n = str.length(), d; i < n; i++) {
 			int c = str.charAt(i);
 			if (c < 0x80) {
@@ -1248,7 +1280,5 @@ public final class JsonWriter {
 				buf[pos++] = (byte)(0x80 + (c & 0x3f));
 			}
 		}
-		if (!noQuote)
-			buf[pos++] = '"';
 	}
 }
