@@ -29,7 +29,7 @@ public final class Json implements Cloneable {
 	static final int TYPE_LIST_FLAG = 0x20; // Collection<1~12> (parser only needs clear() & add(v))
 	static final int TYPE_MAP_FLAG = 0x30; // Map<String, 1~12> (parser only needs clear() & put(k,v))
 
-	interface KeyReader {
+	public interface KeyReader {
 		@NonNull
 		Object parse(@NonNull JsonReader jr, int b) throws ReflectiveOperationException;
 	}
@@ -38,19 +38,21 @@ public final class Json implements Cloneable {
 		T create() throws ReflectiveOperationException;
 	}
 
-	static final class FieldMeta {
-		final int hash; // for FieldMetaMap
-		final int type; // defined above
-		final int offset; // for unsafe access
-		final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
+	public static final class FieldMeta {
+		public final int hash; // for FieldMetaMap
+		public final int type; // defined above
+		public final int offset; // for unsafe access
+		public final @NonNull Class<?> klass; // TYPE_CUSTOM:fieldClass; TYPE_LIST_FLAG/TYPE_MAP_FLAG:subValueClass
 		transient @Nullable ClassMeta<?> classMeta; // from klass, lazy assigned
 		transient @Nullable FieldMeta next; // for FieldMetaMap
-		final byte[] name; // field name
-		final @Nullable Creator<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
-		final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
+		public final byte[] name; // field name
+		public final @Nullable Creator<?> ctor; // for TYPE_LIST_FLAG/TYPE_MAP_FLAG
+		public final @Nullable KeyReader keyParser; // for TYPE_MAP_FLAG
+		public final @NonNull Field field;
+		public final @Nullable Type[] paramTypes;
 
 		FieldMeta(int type, int offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Creator<?> ctor,
-				  @Nullable KeyReader keyReader) {
+				  @Nullable KeyReader keyReader, @NonNull Field field) {
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.hash = getKeyHash(this.name, 0, this.name.length);
 			this.type = type;
@@ -58,29 +60,35 @@ public final class Json implements Cloneable {
 			this.klass = klass;
 			this.ctor = ctor;
 			this.keyParser = keyReader;
+			this.field = field;
+			Type geneType = field.getGenericType();
+			paramTypes = geneType instanceof ParameterizedType
+					? ((ParameterizedType)geneType).getActualTypeArguments() : null;
 		}
 
 		@NonNull
-		String getName() {
+		public String getName() {
 			return new String(name, StandardCharsets.UTF_8);
 		}
 	}
 
 	public interface Parser<T> {
 		@Nullable
-		T parse(@NonNull JsonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable T obj, @Nullable Object parent)
-				throws ReflectiveOperationException;
+		T parse(@NonNull JsonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable FieldMeta fieldMeta,
+				@Nullable T obj, @Nullable Object parent) throws ReflectiveOperationException;
 
 		@SuppressWarnings("unchecked")
-		default @Nullable T parse0(@NonNull JsonReader reader, @NonNull ClassMeta<?> classMeta, @Nullable Object obj,
+		default @Nullable T parse0(@NonNull JsonReader reader, @NonNull ClassMeta<?> classMeta,
+								   @Nullable FieldMeta fieldMeta, @Nullable Object obj,
 								   @Nullable Object parent) throws ReflectiveOperationException {
-			return parse(reader, (ClassMeta<T>)classMeta, (T)obj, parent);
+			return parse(reader, (ClassMeta<T>)classMeta, fieldMeta, (T)obj, parent);
 		}
 	}
 
 	public interface Writer<T> {
 		void write(@NonNull JsonWriter writer, @NonNull ClassMeta<T> classMeta, @Nullable T obj);
 
+		// ensure +1
 		@SuppressWarnings("unchecked")
 		default void write0(@NonNull JsonWriter writer, @NonNull ClassMeta<?> classMeta, @Nullable Object obj) {
 			write(writer, (ClassMeta<T>)classMeta, (T)obj);
@@ -144,6 +152,10 @@ public final class Json implements Cloneable {
 
 		static boolean isInKeyReaderMap(Class<?> klass) {
 			return keyReaderMap.containsKey(klass);
+		}
+
+		public static KeyReader getKeyReader(Class<?> klass) {
+			return keyReaderMap.get(klass);
 		}
 
 		static boolean isAbstract(@NonNull Class<?> klass) {
@@ -211,7 +223,8 @@ public final class Json implements Cloneable {
 			int size = 0;
 			for (Class<?> c = klass; c != null; c = c.getSuperclass())
 				for (Field field : getDeclaredFields(c))
-					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0)
+					if ((field.getModifiers() & (Modifier.STATIC | Modifier.TRANSIENT)) == 0
+							&& !field.getName().startsWith("this$"))
 						size++;
 			valueTable = new FieldMeta[1 << (32 - Integer.numberOfLeadingZeros(size * 2 - 1))];
 			fieldMetas = new FieldMeta[size];
@@ -290,7 +303,7 @@ public final class Json implements Cloneable {
 					final BiFunction<Class<?>, Field, String> fieldNameFilter = json.fieldNameFilter;
 					final String fn = fieldNameFilter != null ? fieldNameFilter.apply(c, field) : fieldName;
 					put(j++, new FieldMeta(type, (int)offset, fn != null ? fn : fieldName, fieldClass, fieldCtor,
-							keyReader));
+							keyReader, field));
 				}
 			}
 		}

@@ -60,7 +60,7 @@ public final class Test {
 		assertEquals(A.class, c.a.getClass());
 		assertEquals(5, c.a.a);
 
-		Json.instance.getClassMeta(A.class).setParser((json, __, ___, ____) -> json.parse(B.class));
+		Json.instance.getClassMeta(A.class).setParser((json, __, ___, ____, _____) -> json.parse(B.class));
 		c.a = null;
 		c = JsonReader.local().buf("{a:{a:7,b:8}}").parse(c);
 		assertNotNull(c);

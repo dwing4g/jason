@@ -351,7 +351,7 @@ public final class JsonReader {
 		Parser<T> parser = classMeta.parser;
 		if (parser != null) {
 			for (int b = skipNext(); b != ']'; b = skipVar(']'))
-				c.add(parser.parse(this, classMeta, null, null));
+				c.add(parser.parse(this, classMeta, null, null, null));
 		} else {
 			if (ClassMeta.isAbstract(elemClass))
 				throw new InstantiationException("abstract element class: " + elemClass.getName());
@@ -420,10 +420,14 @@ public final class JsonReader {
 			if (obj == null)
 				return null;
 			classMeta = json.getClassMeta((Class<T>)obj.getClass());
+		} else {
+			KeyReader kr = ClassMeta.getKeyReader(classMeta.klass);
+			if (kr != null)
+				return (T)kr.parse(this, next());
 		}
 		Parser<? super T> parser = classMeta.parser;
 		if (parser != null)
-			return (T)parser.parse0(this, classMeta, obj, null);
+			return (T)parser.parse0(this, classMeta, null, obj, null);
 		if (obj != null)
 			return parse0(obj, classMeta);
 		if (ClassMeta.isAbstract(classMeta.klass))
@@ -491,7 +495,7 @@ public final class JsonReader {
 						subClassMeta = classMeta.json.getClassMeta(subClass);
 					Parser<?> parser = subClassMeta.parser;
 					if (parser != null) {
-						Object newSubObj = parser.parse0(this, subClassMeta, subObj, obj);
+						Object newSubObj = parser.parse0(this, subClassMeta, fm, subObj, obj);
 						if (newSubObj != subObj) {
 							if (newSubObj != null && !fm.klass.isAssignableFrom(newSubObj.getClass()))
 								throw new InstantiationException("incompatible type(" + newSubObj.getClass()
@@ -506,7 +510,7 @@ public final class JsonReader {
 						fm.classMeta = subClassMeta = classMeta.json.getClassMeta(fm.klass);
 					Parser<?> parser = subClassMeta.parser;
 					if (parser != null)
-						subObj = parser.parse0(this, subClassMeta, null, obj);
+						subObj = parser.parse0(this, subClassMeta, fm, null, obj);
 					else {
 						if (ClassMeta.isAbstract(subClassMeta.klass))
 							throw new InstantiationException(
@@ -561,7 +565,7 @@ public final class JsonReader {
 							if (parser == null)
 								throw new InstantiationException("abstract Collection field: " + fm.getName() + " in "
 										+ classMeta.klass.getName());
-							Object c2 = parser.parse0(this, cm, null, obj);
+							Object c2 = parser.parse0(this, cm, fm, null, obj);
 							if (c2 != null && !fm.klass.isAssignableFrom(c2.getClass()))
 								throw new InstantiationException(
 										"incompatible type(" + c2.getClass() + ") for Collection field: " + fm.getName()
@@ -624,7 +628,7 @@ public final class JsonReader {
 						Parser<?> parser = subClassMeta.parser;
 						if (parser != null) {
 							for (; b != ']'; b = skipVar(']'))
-								c.add(parser.parse0(this, subClassMeta, null, c));
+								c.add(parser.parse0(this, subClassMeta, fm, null, c));
 						} else {
 							if (ClassMeta.isAbstract(subClassMeta.klass))
 								throw new InstantiationException(
@@ -654,7 +658,7 @@ public final class JsonReader {
 							if (parser == null)
 								throw new InstantiationException(
 										"abstract Map field: " + fm.getName() + " in " + classMeta.klass.getName());
-							Object m2 = parser.parse0(this, cm, null, obj);
+							Object m2 = parser.parse0(this, cm, fm, null, obj);
 							if (m2 != null && !fm.klass.isAssignableFrom(m2.getClass()))
 								throw new InstantiationException("incompatible type(" + m2.getClass()
 										+ ") for Map field: " + fm.getName() + " in " + classMeta.klass.getName());
@@ -743,7 +747,7 @@ public final class JsonReader {
 							for (; b != '}'; b = skipVar('}')) {
 								Object k = keyParser.parse(this, b);
 								skipColon();
-								m.put(k, parser.parse0(this, subClassMeta, null, m));
+								m.put(k, parser.parse0(this, subClassMeta, fm, null, m));
 							}
 						} else {
 							if (ClassMeta.isAbstract(subClassMeta.klass))
@@ -797,12 +801,12 @@ public final class JsonReader {
 		}
 	}
 
-	static @NonNull String parseStringKey(@NonNull JsonReader jr, int b) throws ReflectiveOperationException {
+	public static @NonNull String parseStringKey(@NonNull JsonReader jr, int b) throws ReflectiveOperationException {
 		String key = b == '"' || b == '\'' ? jr.parseString(true) : jr.parseStringNoQuot();
 		return key != null ? key : "";
 	}
 
-	static @NonNull Boolean parseBooleanKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Boolean parseBooleanKey(@NonNull JsonReader jr, int b) {
 		boolean v;
 		if (b == '"' || b == '\'') {
 			v = jr.buf[++jr.pos] == 't';
@@ -812,7 +816,7 @@ public final class JsonReader {
 		return v;
 	}
 
-	static @NonNull Byte parseByteKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Byte parseByteKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -823,7 +827,7 @@ public final class JsonReader {
 		return (byte)v;
 	}
 
-	static @NonNull Short parseShortKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Short parseShortKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -834,7 +838,7 @@ public final class JsonReader {
 		return (short)v;
 	}
 
-	static @NonNull Character parseCharKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Character parseCharKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -845,7 +849,7 @@ public final class JsonReader {
 		return (char)v;
 	}
 
-	static @NonNull Integer parseIntegerKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Integer parseIntegerKey(@NonNull JsonReader jr, int b) {
 		int v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -856,7 +860,7 @@ public final class JsonReader {
 		return v;
 	}
 
-	static @NonNull Long parseLongKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Long parseLongKey(@NonNull JsonReader jr, int b) {
 		long v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -867,7 +871,7 @@ public final class JsonReader {
 		return v;
 	}
 
-	static @NonNull Float parseFloatKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Float parseFloatKey(@NonNull JsonReader jr, int b) {
 		double v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -878,7 +882,7 @@ public final class JsonReader {
 		return (float)v;
 	}
 
-	static @NonNull Double parseDoubleKey(@NonNull JsonReader jr, int b) {
+	public static @NonNull Double parseDoubleKey(@NonNull JsonReader jr, int b) {
 		double v;
 		if (b == '"' || b == '\'') {
 			jr.pos++;
@@ -928,12 +932,12 @@ public final class JsonReader {
 					len += 2;
 				else
 					len++;
-			}
+			} else
+				len++;
 		}
 		byte[] t = new byte[len];
-		p = begin;
 		System.arraycopy(buffer, begin, t, 0, n);
-		for (; ; ) {
+		for (p = begin + n; ; ) {
 			if ((b = buffer[p++]) == e) {
 				pos = p;
 				return t;
