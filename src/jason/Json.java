@@ -416,7 +416,7 @@ public final class Json implements Cloneable {
 			STRING_CODE_OFFSET = BYTE_STRING ?
 					unsafe.objectFieldOffset(Objects.requireNonNull(getDeclaredField(String.class, "coder"))) : 0;
 		} catch (ReflectiveOperationException e) {
-			throw new RuntimeException(e);
+			throw new ExceptionInInitializerError(e);
 		}
 	}
 
@@ -486,5 +486,89 @@ public final class Json implements Cloneable {
 
 	public void clearClassMetas() {
 		classMetas.clear();
+	}
+
+	public static <T> @Nullable T parse(@NonNull String jsonStr, @Nullable Class<T> klass) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr).parse(klass);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static <T> @Nullable T parse(byte @NonNull [] jsonStr, @Nullable Class<T> klass) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr).parse(klass);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static <T> @Nullable T parse(byte @NonNull [] jsonStr, int pos, @Nullable Class<T> klass) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr, pos).parse(klass);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static <T> @Nullable T parse(@NonNull String jsonStr, @Nullable T obj) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr).parse(obj);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static <T> @Nullable T parse(byte @NonNull [] jsonStr, @Nullable T obj) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr).parse(obj);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static <T> @Nullable T parse(byte @NonNull [] jsonStr, int pos, @Nullable T obj) {
+		JsonReader jr = JsonReader.local();
+		try {
+			return jr.buf(jsonStr, pos).parse(obj);
+		} catch (ReflectiveOperationException e) {
+			throw new RuntimeException(e);
+		} finally {
+			jr.reset();
+		}
+	}
+
+	public static @NonNull String toCompactString(@Nullable Object obj) {
+		JsonWriter jw = JsonWriter.local();
+		try {
+			return jw.clear().setFlagsAndDepthLimit(0, 16).write(obj).toString();
+		} finally {
+			jw.clear();
+		}
+	}
+
+	public static byte @NonNull [] toCompactBytes(@Nullable Object obj) {
+		JsonWriter jw = JsonWriter.local();
+		try {
+			return jw.clear().setFlagsAndDepthLimit(0, 16).write(obj).toBytes();
+		} finally {
+			jw.clear();
+		}
 	}
 }
