@@ -5,7 +5,7 @@
     <option name="myDefaultNotNull" value="org.eclipse.jdt.annotation.NonNull" />
     <option name="myNullables">
       <value>
-        <list size="16">
+        <list size="17">
           <item index="0" class="java.lang.String" itemvalue="org.jetbrains.annotations.Nullable" />
           <item index="1" class="java.lang.String" itemvalue="edu.umd.cs.findbugs.annotations.Nullable" />
           <item index="2" class="java.lang.String" itemvalue="android.support.annotation.Nullable" />
@@ -22,12 +22,13 @@
           <item index="13" class="java.lang.String" itemvalue="io.reactivex.rxjava3.annotations.Nullable" />
           <item index="14" class="java.lang.String" itemvalue="org.jspecify.nullness.Nullable" />
           <item index="15" class="java.lang.String" itemvalue="jakarta.annotation.Nullable" />
+          <item index="16" class="java.lang.String" itemvalue="org.jspecify.annotations.Nullable" />
         </list>
       </value>
     </option>
     <option name="myNotNulls">
       <value>
-        <list size="16">
+        <list size="17">
           <item index="0" class="java.lang.String" itemvalue="org.jetbrains.annotations.NotNull" />
           <item index="1" class="java.lang.String" itemvalue="edu.umd.cs.findbugs.annotations.NonNull" />
           <item index="2" class="java.lang.String" itemvalue="android.support.annotation.NonNull" />
@@ -44,11 +45,12 @@
           <item index="13" class="java.lang.String" itemvalue="lombok.NonNull" />
           <item index="14" class="java.lang.String" itemvalue="jakarta.annotation.Nonnull" />
           <item index="15" class="java.lang.String" itemvalue="org.jspecify.nullness.NonNull" />
+          <item index="16" class="java.lang.String" itemvalue="org.jspecify.annotations.NonNull" />
         </list>
       </value>
     </option>
   </component>
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_1_9" project-jdk-name="11" project-jdk-type="JavaSDK">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_18" project-jdk-name="21" project-jdk-type="JavaSDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>

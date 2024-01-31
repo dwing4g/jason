@@ -175,6 +175,7 @@ public final class Json implements Cloneable {
 
 		private static @Nullable Class<?> getCollectionSubClass(Type geneType) { // X<T>, X extends Y<T>, X implements Y<T>
 			if (geneType instanceof ParameterizedType) {
+				//noinspection PatternVariableCanBeUsed
 				ParameterizedType paraType = (ParameterizedType)geneType;
 				Class<?> rawClass = (Class<?>)paraType.getRawType();
 				if (Collection.class.isAssignableFrom(rawClass)) {
@@ -184,6 +185,7 @@ public final class Json implements Cloneable {
 				}
 			}
 			if (geneType instanceof Class) {
+				//noinspection PatternVariableCanBeUsed
 				Class<?> klass = (Class<?>)geneType;
 				for (Type subType : klass.getGenericInterfaces()) {
 					Class<?> subClass = getCollectionSubClass(subType);
@@ -197,6 +199,7 @@ public final class Json implements Cloneable {
 
 		private static Type[] getMapSubClasses(Type geneType) { // X<K,V>, X extends Y<K,V>, X implements Y<K,V>
 			if (geneType instanceof ParameterizedType) {
+				//noinspection PatternVariableCanBeUsed
 				ParameterizedType paraType = (ParameterizedType)geneType;
 				if (Map.class.isAssignableFrom((Class<?>)paraType.getRawType())) {
 					Type[] subTypes = paraType.getActualTypeArguments();
@@ -205,6 +208,7 @@ public final class Json implements Cloneable {
 				}
 			}
 			if (geneType instanceof Class) {
+				//noinspection PatternVariableCanBeUsed
 				Class<?> klass = (Class<?>)geneType;
 				for (Type subType : klass.getGenericInterfaces()) {
 					Type[] subTypes = getMapSubClasses(subType);
@@ -296,7 +300,7 @@ public final class Json implements Cloneable {
 						}
 					} else
 						type = TYPE_CUSTOM;
-					long offset = unsafe.objectFieldOffset(field);
+					long offset = objectFieldOffset(field);
 					if (offset != (int)offset)
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ fieldName + " in " + klass.getName());
@@ -377,6 +381,7 @@ public final class Json implements Cloneable {
 	static final long STRING_VALUE_OFFSET, STRING_CODE_OFFSET;
 	static final boolean BYTE_STRING;
 	static final int keyHashMultiplier = 0x100_0193; // 1677_7619 can be changed to another prime number
+	public static final int javaVersion;
 	public static final Json instance = new Json();
 
 	private final @NonNull ConcurrentHashMap<Class<?>, ClassMeta<?>> classMetas = new ConcurrentHashMap<>();
@@ -411,10 +416,13 @@ public final class Json implements Cloneable {
 			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(setAccessible(
 					Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class))));
 			Field valueField = getDeclaredField(String.class, "value");
-			STRING_VALUE_OFFSET = unsafe.objectFieldOffset(Objects.requireNonNull(valueField));
+			STRING_VALUE_OFFSET = objectFieldOffset(Objects.requireNonNull(valueField));
 			BYTE_STRING = valueField.getType() == byte[].class;
 			STRING_CODE_OFFSET = BYTE_STRING ?
-					unsafe.objectFieldOffset(Objects.requireNonNull(getDeclaredField(String.class, "coder"))) : 0;
+					objectFieldOffset(Objects.requireNonNull(getDeclaredField(String.class, "coder"))) : 0;
+			String v = System.getProperty("java.version");
+			int p = v.indexOf('.');
+			javaVersion = Integer.parseInt(p < 0 ? v : v.substring(0, p));
 		} catch (ReflectiveOperationException e) {
 			throw new ExceptionInInitializerError(e);
 		}
@@ -422,6 +430,11 @@ public final class Json implements Cloneable {
 
 	public static @NonNull Unsafe getUnsafe() {
 		return unsafe;
+	}
+
+	@SuppressWarnings("deprecation")
+	public static long objectFieldOffset(Field field) {
+		return unsafe.objectFieldOffset(field);
 	}
 
 	static Field[] getDeclaredFields(Class<?> klass) {
