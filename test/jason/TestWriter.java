@@ -120,6 +120,10 @@ public class TestWriter {
 		testLong(Long.MAX_VALUE);
 		testLong(-Long.MAX_VALUE);
 		testLong(Long.MIN_VALUE);
+		for (int i = 0; i < 32; i++) {
+			testLong(0x5a5a_5a5a_5a5a_5a5aL >> i);
+			testLong(0xa5a5_a5a5_a5a5_a5a5L >> i);
+		}
 
 		testDouble(0.0, "0.0");
 		testDouble(-0.0, "-0.0");
