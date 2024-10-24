@@ -377,6 +377,7 @@ public final class Json implements Cloneable {
 
 	static final @NonNull Unsafe unsafe;
 	private static final @NonNull MethodHandle getDeclaredFields0MH;
+	static final @NonNull MethodHandle stringCtorMH;
 	private static final long OVERRIDE_OFFSET;
 	static final long STRING_VALUE_OFFSET, STRING_CODE_OFFSET;
 	static final boolean BYTE_STRING;
@@ -413,13 +414,18 @@ public final class Json implements Cloneable {
 				if (i == 32) // should be enough
 					throw new UnsupportedOperationException(System.getProperty("java.version"));
 			}
-			getDeclaredFields0MH = ensureNonNull(MethodHandles.lookup().unreflect(setAccessible(
+			MethodHandles.Lookup lookup = MethodHandles.lookup();
+			getDeclaredFields0MH = ensureNonNull(lookup.unreflect(setAccessible(
 					Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class))));
 			Field valueField = getDeclaredField(String.class, "value");
 			STRING_VALUE_OFFSET = objectFieldOffset(Objects.requireNonNull(valueField));
 			BYTE_STRING = valueField.getType() == byte[].class;
 			STRING_CODE_OFFSET = BYTE_STRING ?
 					objectFieldOffset(Objects.requireNonNull(getDeclaredField(String.class, "coder"))) : 0;
+			//noinspection JavaReflectionMemberAccess
+			stringCtorMH = ensureNonNull(lookup.unreflectConstructor(setAccessible(BYTE_STRING
+					? String.class.getDeclaredConstructor(byte[].class, byte.class)
+					: String.class.getDeclaredConstructor(char[].class, boolean.class))));
 			String v = System.getProperty("java.version");
 			int p = v.indexOf('.');
 			javaVersion = Integer.parseInt(p < 0 ? v : v.substring(0, p));
@@ -479,14 +485,14 @@ public final class Json implements Cloneable {
 		return h;
 	}
 
-	static @NonNull String newByteString(byte[] buf, int pos, int end) throws ReflectiveOperationException {
+	static @NonNull String newByteString(byte[] buf, int pos, int end) {
 		if (!BYTE_STRING) // for JDK8-
 			return new String(buf, pos, end - pos, StandardCharsets.ISO_8859_1);
-		@SuppressWarnings("null")
-		@NonNull
-		String str = (String)unsafe.allocateInstance(String.class);
-		unsafe.putObject(str, STRING_VALUE_OFFSET, Arrays.copyOfRange(buf, pos, end)); // for JDK9+
-		return str;
+		try {
+			return (String)stringCtorMH.invokeExact(Arrays.copyOfRange(buf, pos, end), (byte)0); // for JDK9+
+		} catch (Throwable e) { // MethodHandle.invoke
+			throw new RuntimeException(e);
+		}
 	}
 
 	@SuppressWarnings("unchecked")
