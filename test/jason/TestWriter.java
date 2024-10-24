@@ -176,6 +176,6 @@ public class TestWriter {
 		testDouble(2, -0.10000000000000001, "-0.1");
 		testDouble(1, -0.10000000000000001, "-0.1");
 
-		System.out.println(count + " tests OK!");
+		System.out.println(TestWriter.class.getSimpleName() + ": " + count + " tests OK!");
 	}
 }

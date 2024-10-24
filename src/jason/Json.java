@@ -389,7 +389,7 @@ public final class Json implements Cloneable {
 
 	@SuppressWarnings("MethodDoesntCallSuperMethod")
 	@Override
-	public Json clone() {
+	public @NonNull Json clone() {
 		Json json = new Json();
 		json.classMetas.putAll(classMetas);
 		json.fieldNameFilter = fieldNameFilter;

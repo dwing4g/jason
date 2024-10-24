@@ -1180,7 +1180,6 @@ public final class JsonReader {
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
-			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
@@ -1280,7 +1279,6 @@ public final class JsonReader {
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
-			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
@@ -1380,7 +1378,6 @@ public final class JsonReader {
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
-			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;
@@ -1501,7 +1498,6 @@ public final class JsonReader {
 		if (expMinus)
 			exp = -exp;
 		if (useDouble > 0) {
-			//noinspection ConstantConditions
 			if (useDouble == 1)
 				d = i;
 			exp += expFrac;

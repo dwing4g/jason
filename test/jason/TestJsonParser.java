@@ -18,7 +18,7 @@ public final class TestJsonParser {
 				throw new RuntimeException();
 			v += c.a + c.c.a;
 		}
-		System.out.println(System.nanoTime() - t);
-		System.out.println(v);
+		System.out.println(TestJsonParser.class.getSimpleName() + ": " + v + ", " +
+				(System.nanoTime() - t) / 1_000_000 + " ms");
 	}
 }

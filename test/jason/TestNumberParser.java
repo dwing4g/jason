@@ -11,7 +11,7 @@ public final class TestNumberParser {
 			for (int j = 0; j < 8; j++)
 				r += jr.buf(tests[j]).parseDouble();
 		}
-		System.out.format("%15.6f%n", r); // 624694507922444.400000
+		System.out.format("%s.testReader: %15.6f\n", TestNumberParser.class.getSimpleName(), r); // 624694507922444.400000
 	}
 
 	public static void testWriter() {
@@ -26,15 +26,17 @@ public final class TestNumberParser {
 //				System.out.println(new String(jw.buf, 0, jw.pos));
 			}
 		}
-		System.out.format("%d%n", n); // 660000000
+		System.out.format("%s.testWriter: %d\n", TestNumberParser.class.getSimpleName(), n); // 660000000
 	}
 
 	public static void main(String[] args) {
 		long t = System.nanoTime();
 		testReader();
-		System.out.println((System.nanoTime() - t) / 1_000_000 + " ms");
+		System.out.println(TestNumberParser.class.getSimpleName() + ".testReader: " +
+				(System.nanoTime() - t) / 1_000_000 + " ms");
 		t = System.nanoTime();
 		testWriter();
-		System.out.println((System.nanoTime() - t) / 1_000_000 + " ms");
+		System.out.println(TestNumberParser.class.getSimpleName() + ".testWriter: " +
+				(System.nanoTime() - t) / 1_000_000 + " ms");
 	}
 }

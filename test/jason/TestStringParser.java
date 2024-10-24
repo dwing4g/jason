@@ -38,6 +38,6 @@ public final class TestStringParser {
 					throw new RuntimeException();
 				r += s.length();
 			}
-		System.out.println(r); // 102000000
+		System.out.println(TestStringParser.class.getSimpleName() + ": " + r); // 102000000
 	}
 }

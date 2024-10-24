@@ -330,6 +330,6 @@ public final class Test {
 		testD();
 		testE();
 		testF();
-		System.out.println("15 tests OK!");
+		System.out.println(Test.class.getSimpleName() + ": 15 tests OK!");
 	}
 }
