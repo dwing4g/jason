@@ -5,23 +5,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 //ref: https://github.com/jk-jeon/dragonbox/tree/master/subproject/simple
 public class DragonBox {
-	private static final boolean ROUND_TO_EVEN = false;
-	private static final int TOTAL_BITS = 64;
-	private static final int SIGNIFICAND_BITS = 52;
-	private static final int EXPONENT_BITS = 11;
-	private static final int MIN_EXPONENT = -1022; // MAX_EXPONENT = 1023
-	private static final int EXPONENT_BIAS = -1023;
-	private static final int DECIMAL_SIGNIFICAND_DIGITS = 17;
-	private static final int DECIMAL_EXPONENT_DIGITS = 3;
-	private static final int MIN_K = -292;
-
-	private static final int KAPPA = 2;
-	private static final int SHORTER_INTERVAL_TIE_LOWER_THRESHOLD = -77;
-	private static final int BIG_DIVISOR = 1000;
-	private static final int SMALL_DIVISOR = 100;
-
-	public static final int MAX_DOUBLE_BYTES = 4 + DECIMAL_SIGNIFICAND_DIGITS + DECIMAL_EXPONENT_DIGITS;
-
 	private static final long[] DOUBLE_TABLE = new long[]{ // uint128(high,low)[619]
 			0xff77b1fcbebcdc4fL, 0x25e8e89c13bb0f7bL,
 			0x9faacf3df73609b1L, 0x77b191618c54e9adL,
@@ -644,7 +627,18 @@ public class DragonBox {
 			0xf70867153aa2db38L, 0xb8cbee4fc66d1ea8L,
 	};
 
-	public static int writeDouble(double f, byte[] buf, int pos) {
+	public static final int MAX_DOUBLE_BYTES = 24; // 4 + (DECIMAL_SIGNIFICAND_DIGITS=17) + (DECIMAL_EXPONENT_DIGITS=3);
+
+	public static int writeDouble(final double f, final byte[] buf, int pos) {
+		final int TOTAL_BITS = 64;
+		final int SIGNIFICAND_BITS = 52;
+		final int EXPONENT_BITS = 11;
+		final int MIN_EXPONENT = -1022; // MAX_EXPONENT = 1023
+		final int EXPONENT_BIAS = -1023;
+		final int MIN_K = -292;
+		final int KAPPA = 2;
+		final int DIVIDE_MAGIC_NUMBER = 656; // KAPPA == 1 ? 6554 : 656;
+		final int BIG_DIVISOR = 1000;
 		final long u = Double.doubleToRawLongBits(f);
 		final long u2 = u << 1;
 		if (u2 == 0) {
@@ -676,63 +670,54 @@ public class DragonBox {
 		}
 		if (u < 0)
 			buf[pos++] = '-';
-
-		boolean hasResult = false;
-		long num2 = 0;
-		int binExp = exp;
-		if (binExp != 0) {
-			binExp += EXPONENT_BIAS - SIGNIFICAND_BITS;
-			if (num == 0) {
-				final int minusK = (binExp * 631305 - 261663) >> 21;
-				final int beta = binExp + ((-minusK * 1741647) >> 19);
+		do {
+			final long num2;
+			if (exp == 0) {
+				exp = MIN_EXPONENT - SIGNIFICAND_BITS;
+				num2 = num * 2;
+			} else if (num != 0) {
+				exp += EXPONENT_BIAS - SIGNIFICAND_BITS;
+				num2 = num * 2 + (1L << (SIGNIFICAND_BITS + 1));
+			} else {
+				exp += EXPONENT_BIAS - SIGNIFICAND_BITS;
+				final int minusK = (exp * 631305 - 261663) >> 21;
+				final int beta = exp + ((-minusK * 1741647) >> 19);
 				final long cacheHigh = DOUBLE_TABLE[(-minusK - MIN_K) * 2];
 				final long xi = ((cacheHigh - (cacheHigh >>> (SIGNIFICAND_BITS + 2)))
 						>>> (TOTAL_BITS - SIGNIFICAND_BITS - 1 - beta)) + 1;
 				final long zi = (cacheHigh + (cacheHigh >>> (SIGNIFICAND_BITS + 1)))
 						>>> (TOTAL_BITS - SIGNIFICAND_BITS - 1 - beta);
-				long decNum = Math.unsignedMultiplyHigh(zi, 1844674407370955162L);
-				if (decNum * 10 >= xi) {
-					long r = Long.rotateRight(decNum * 0x67_074B_22E9_0E21L, 8);
+				num = Math.unsignedMultiplyHigh(zi, 1844674407370955162L);
+				if (Long.compareUnsigned(num * 10, xi) >= 0) {
+					long r = Long.rotateRight(num * 0x67_074B_22E9_0E21L, 8);
 					int s = Long.compareUnsigned(r, 184467440738L) >>> 31;
 					if (s != 0)
-						decNum = r;
-					r = Long.rotateRight(decNum * 0x288_CE70_3AFB_7E91L, 4);
+						num = r;
+					r = Long.rotateRight(num * 0x288_CE70_3AFB_7E91L, 4);
 					int b = Long.compareUnsigned(r, 1844674407370956L) >>> 31;
 					s = s * 2 + b;
 					if (b != 0)
-						decNum = r;
-					r = Long.rotateRight(decNum * 0x8F5C_28F5_C28F_5C29L, 2);
+						num = r;
+					r = Long.rotateRight(num * 0x8F5C_28F5_C28F_5C29L, 2);
 					b = Long.compareUnsigned(r, 184467440737095517L) >>> 31;
 					s = s * 2 + b;
 					if (b != 0)
-						decNum = r;
-					r = Long.rotateRight(decNum * 0xCCCC_CCCC_CCCC_CCCDL, 1);
+						num = r;
+					r = Long.rotateRight(num * 0xCCCC_CCCC_CCCC_CCCDL, 1);
 					b = Long.compareUnsigned(r, 1844674407370955162L) >>> 31;
 					s = s * 2 + b;
 					if (b != 0)
-						decNum = r;
-					num = decNum;
+						num = r;
 					exp = minusK + s + 1;
 				} else {
-					decNum = ((cacheHigh >>> (TOTAL_BITS - SIGNIFICAND_BITS - 2 - beta)) + 1) >>> 1;
-					if (ROUND_TO_EVEN && (decNum & 1) != 0 && binExp == SHORTER_INTERVAL_TIE_LOWER_THRESHOLD)
-						decNum--;
-					else if (decNum < xi)
-						decNum++;
-					num = decNum;
+					num = (((cacheHigh >>> (TOTAL_BITS - SIGNIFICAND_BITS - 2 - beta)) + 1) >>> 1)
+							+ Long.compareUnsigned(num, xi) >>> 31;
 					exp = minusK;
 				}
-				hasResult = true;
-			} else
-				num2 = num * 2 + (1L << (SIGNIFICAND_BITS + 1));
-		} else {
-			binExp = MIN_EXPONENT - SIGNIFICAND_BITS;
-			num2 = num * 2;
-		}
-
-		if (!hasResult) {
-			final int minusK = ((binExp * 315653) >> 20) - KAPPA;
-			final int beta = binExp + ((-minusK * 1741647) >> 19);
+				break;
+			}
+			final int minusK = ((exp * 315653) >> 20) - KAPPA;
+			final int beta = exp + ((-minusK * 1741647) >> 19);
 			final int p = (-minusK - MIN_K) * 2;
 			final long cacheHigh = DOUBLE_TABLE[p];
 			final long cacheLow = DOUBLE_TABLE[p + 1];
@@ -741,70 +726,36 @@ public class DragonBox {
 			final long rLow = uu * cacheHigh;
 			final long zResult = Math.unsignedMultiplyHigh(uu, cacheHigh)
 					+ (Long.compareUnsigned(Math.unsignedMultiplyHigh(uu, cacheLow) + rLow, rLow) >>> 31);
-			long decNum = Math.unsignedMultiplyHigh(zResult, 4722366482869645214L) >>> 8;
-			final long rem = zResult - decNum * BIG_DIVISOR;
-			do {
-				if (rem > deltai)
-					break;
-				if (rem == deltai) {
-					final long two_f = num2 - 1;
-					long high = two_f * cacheHigh;
-					long high_low_high = Math.unsignedMultiplyHigh(two_f, cacheLow);
-					long r_high = high + high_low_high;
-					if (((r_high >>> (64 - beta)) & 1) == 0)
-						break;
-				}
-				long r = Long.rotateRight(decNum * 0x67_074B_22E9_0E21L, 8);
+			num = Math.unsignedMultiplyHigh(zResult, 4722366482869645214L) >>> 8;
+			long r = zResult - num * BIG_DIVISOR;
+			final long num3;
+			if (Long.compareUnsigned(r, deltai) > 0 || r == deltai && ((((num3 = num2 - 1) * cacheHigh
+					+ Math.unsignedMultiplyHigh(num3, cacheLow)) >>> (64 - beta)) & 1) == 0) {
+				num = num * 10 + ((r * DIVIDE_MAGIC_NUMBER) >>> 16);
+				exp = minusK + KAPPA;
+			} else {
+				r = Long.rotateRight(num * 0x67_074B_22E9_0E21L, 8);
 				int s = Long.compareUnsigned(r, 184467440738L) >>> 31;
 				if (s != 0)
-					decNum = r;
-				r = Long.rotateRight(decNum * 0x288_CE70_3AFB_7E91L, 4);
+					num = r;
+				r = Long.rotateRight(num * 0x288_CE70_3AFB_7E91L, 4);
 				int b = Long.compareUnsigned(r, 1844674407370956L) >>> 31;
 				s = s * 2 + b;
 				if (b != 0)
-					decNum = r;
-				r = Long.rotateRight(decNum * 0x8F5C_28F5_C28F_5C29L, 2);
+					num = r;
+				r = Long.rotateRight(num * 0x8F5C_28F5_C28F_5C29L, 2);
 				b = Long.compareUnsigned(r, 184467440737095517L) >>> 31;
 				s = s * 2 + b;
 				if (b != 0)
-					decNum = r;
-				r = Long.rotateRight(decNum * 0xCCCC_CCCC_CCCC_CCCDL, 1);
+					num = r;
+				r = Long.rotateRight(num * 0xCCCC_CCCC_CCCC_CCCDL, 1);
 				b = Long.compareUnsigned(r, 1844674407370955162L) >>> 31;
 				s = s * 2 + b;
 				if (b != 0)
-					decNum = r;
-				num = decNum;
+					num = r;
 				exp = minusK + s + KAPPA + 1;
-				hasResult = true;
-			} while (false);
-
-			if (!hasResult) {
-				decNum *= 10;
-				if (ROUND_TO_EVEN) {
-					long dist = rem - (deltai >>> 1) + (SMALL_DIVISOR >>> 1);
-					final boolean approx_y_parity = ((dist ^ (SMALL_DIVISOR >>> 1)) & 1) != 0;
-					final long magic_number = KAPPA == 1 ? 6554 : 656;
-					final long prod = dist * magic_number;
-					final boolean divisible_by_small_divisor = (prod & 0xffff) < magic_number;
-					dist = prod >>> 16;
-					decNum += dist;
-					if (divisible_by_small_divisor) {
-						final long high = num2 * cacheHigh;
-						final long high_low_low = num2 * cacheLow;
-						final long high_low_high = Math.unsignedMultiplyHigh(num2, cacheLow);
-						final long r_high = high + high_low_high;
-						final boolean y_result_parity = ((r_high >>> (64 - beta)) & 1) != 0;
-						final boolean y_result_is_integer = ((r_high << beta) | (high_low_low >>> (64 - beta))) == 0;
-						if (y_result_parity != approx_y_parity || (decNum & 1) != 0 && y_result_is_integer)
-							decNum--;
-					}
-				} else
-					decNum += (rem * (KAPPA == 1 ? 6554 : 656)) >>> 16;
-				num = decNum;
-				exp = minusK + KAPPA;
 			}
-		}
-
+		} while (false);
 		if (num < 10)
 			buf[pos++] = (byte)('0' + num);
 		else {
@@ -825,8 +776,8 @@ public class DragonBox {
 		if (exp != 0) {
 			buf[pos++] = 'e';
 			if (exp < 0) {
-				buf[pos++] = '-';
 				exp = -exp;
+				buf[pos++] = '-';
 			}
 			int begin = pos;
 			do {
@@ -935,6 +886,42 @@ public class DragonBox {
 		System.out.format("     DragonBox: %d (%d ms)%n", n, (System.nanoTime() - t) / 1_000_000); // 660000000
 	}
 
+	private static final byte[] LEN_TABLE = { // [64]
+			19, 19, 19, 19, 18, 18, 18, 17, 17, 17, 16, 16, 16, 16, 15, 15,
+			15, 14, 14, 14, 13, 13, 13, 13, 12, 12, 12, 11, 11, 11, 10, 10,
+			10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 7, 7, 6, 6, 6, 5,
+			5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1,
+	};
+
+	@SuppressWarnings("NumericOverflow")
+	private static final long[] CMP_TABLE = { // [20]
+			1L,
+			10L,
+			100L,
+			1000L,
+			10000L,
+			100000L,
+			1000000L,
+			10000000L,
+			100000000L,
+			1000000000L,
+			10000000000L,
+			100000000000L,
+			1000000000000L,
+			10000000000000L,
+			100000000000000L,
+			1000000000000000L,
+			10000000000000000L,
+			100000000000000000L,
+			1000000000000000000L,
+			1000000000000000000L * 10,
+	};
+
+	public static int decimalLen(long u) {
+		int n = LEN_TABLE[Long.numberOfLeadingZeros(u)];
+		return n;
+	}
+
 	public static void main(String[] args) {
 //		var buf = new byte[MAX_LEN];
 //		int p = toChars(1.0, buf, 0);
@@ -942,8 +929,7 @@ public class DragonBox {
 
 		testRange();
 		testRandom();
-
-//		for (int i = 0; i < 5; i++)
-//			benchmark();
+		for (int i = 0; i < 5; i++)
+			benchmark();
 	}
 }
