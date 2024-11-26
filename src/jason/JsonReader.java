@@ -1293,8 +1293,8 @@ public final class JsonReader {
 		final byte[] buffer = buf;
 		double d = 0;
 		long i = 0;
-		int p = pos, n = 0, expFrac = 0, exp = 0, useDouble = 0, b, c;
-		boolean minus = false, expMinus = false;
+		int p = pos, n = 0, expFrac = 0, exp = 0, b, c;
+		boolean minus = false, expMinus = false, useDouble = false;
 
 		try {
 			b = buffer[p];
@@ -1309,7 +1309,7 @@ public final class JsonReader {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
 					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
 						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8
-						useDouble = 2;
+						useDouble = true;
 						do
 							d = d * 10 + c;
 						while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10);
@@ -1323,8 +1323,7 @@ public final class JsonReader {
 
 			if (b == '.') {
 				b = buffer[++p];
-				if (useDouble == 0) {
-					useDouble = 1;
+				if (!useDouble) {
 					for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 						if (i > 0x1F_FFFF_FFFF_FFFFL) // 2^53 - 1 for fast path
 							break;
@@ -1334,7 +1333,7 @@ public final class JsonReader {
 							n++;
 					}
 					d = i;
-					useDouble = 2;
+					useDouble = true;
 				}
 				for (; (c = (b - '0') & 0xff) < 10; b = buffer[++p]) {
 					if (n < 17) {
@@ -1347,9 +1346,9 @@ public final class JsonReader {
 			}
 
 			if ((b | 0x20) == 'e') { // E:0x45 | 0x20 = e:0x65
-				if (useDouble == 0) {
+				if (!useDouble) {
 					d = i;
-					useDouble = 2;
+					useDouble = true;
 				}
 				if ((b = buffer[++p]) == '+')
 					b = buffer[++p];
@@ -1377,9 +1376,7 @@ public final class JsonReader {
 		pos = p;
 		if (expMinus)
 			exp = -exp;
-		if (useDouble > 0) {
-			if (useDouble == 1)
-				d = i;
+		if (useDouble) {
 			exp += expFrac;
 			d = exp < -308 ? strtod(strtod(d, -308), exp + 308) : strtod(d, exp);
 			if (minus)
