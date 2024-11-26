@@ -1244,17 +1244,17 @@ public class DragonBox {
 	}
 
 	public static void testFloatRange() {
-		// final var jr = new JsonReader();
-		final var buf = new byte[MAX_FLOAT_BYTES];
-		var d = 0.01f;
+		// final JsonReader jr = new JsonReader();
+		final byte[] buf = new byte[MAX_FLOAT_BYTES];
+		float d = 0.01f;
 		for (int j = 0; j < 5; j++, d *= 10) {
 			int dd = Float.floatToRawIntBits(d);
 			for (int i = 0; i < 1_000_000; i++) {
-				final var f = Float.intBitsToFloat(dd + i);
-				final var p = writeFloat(f, buf, 0);
+				final float f = Float.intBitsToFloat(dd + i);
+				final int p = writeFloat(f, buf, 0);
 				// buf[p] = 0;
-				final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
-				final var f2 = Float.parseFloat(s);
+				final String s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+				final float f2 = Float.parseFloat(s);
 				if (f != f2)
 					throw new AssertionError("testFloatRange[" + j + "," + i + "]: " + f + " != " + f2 + ", " + s);
 			}
@@ -1263,15 +1263,15 @@ public class DragonBox {
 	}
 
 	public static void testFloatRandom() {
-		final var r = ThreadLocalRandom.current();
-		// final var jr = new JsonReader();
-		final var buf = new byte[MAX_FLOAT_BYTES];
+		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		// final JsonReader jr = new JsonReader();
+		final byte[] buf = new byte[MAX_FLOAT_BYTES];
 		for (int i = 0; i < 10_000_000; i++) {
-			final var f = r.nextFloat();
-			final var p = writeFloat(f, buf, 0);
+			final float f = r.nextFloat();
+			final int p = writeFloat(f, buf, 0);
 			// buf[p] = 0;
-			final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
-			final var f2 = Float.parseFloat(s);
+			final String s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+			final float f2 = Float.parseFloat(s);
 			if (f != f2)
 				throw new AssertionError("testFloatRandom[" + i + "]: " + f + " != " + f2 + ", " + s);
 		}
@@ -1279,17 +1279,17 @@ public class DragonBox {
 	}
 
 	public static void testDoubleRange() {
-		// final var jr = new JsonReader();
-		final var buf = new byte[MAX_DOUBLE_BYTES];
-		var d = 0.01;
+		// final JsonReader jr = new JsonReader();
+		final byte[] buf = new byte[MAX_DOUBLE_BYTES];
+		double d = 0.01;
 		for (int j = 0; j < 5; j++, d *= 10) {
-			var dd = Double.doubleToRawLongBits(d);
+			long dd = Double.doubleToRawLongBits(d);
 			for (int i = 0; i < 1_000_000; i++) {
-				final var f = Double.longBitsToDouble(dd + i);
-				final var p = writeDouble(f, buf, 0);
+				final double f = Double.longBitsToDouble(dd + i);
+				final int p = writeDouble(f, buf, 0);
 				// buf[p] = 0;
-				final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
-				final var f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
+				final String s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+				final double f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
 				if (f != f2)
 					throw new AssertionError("testDoubleRange[" + j + "," + i + "]: " + f + " != " + f2 + ", " + s);
 			}
@@ -1298,15 +1298,15 @@ public class DragonBox {
 	}
 
 	public static void testDoubleRandom() {
-		final var r = ThreadLocalRandom.current();
-		// final var jr = new JsonReader();
-		final var buf = new byte[MAX_DOUBLE_BYTES];
+		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		// final JsonReader jr = new JsonReader();
+		final byte[] buf = new byte[MAX_DOUBLE_BYTES];
 		for (int i = 0; i < 10_000_000; i++) {
-			final var f = r.nextDouble();
-			final var p = writeDouble(f, buf, 0);
+			final double f = r.nextDouble();
+			final int p = writeDouble(f, buf, 0);
 			// buf[p] = 0;
-			final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
-			final var f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
+			final String s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+			final double f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
 			if (f != f2)
 				throw new AssertionError("testDoubleRandom[" + i + "]: " + f + " != " + f2 + ", " + s);
 		}
@@ -1322,9 +1322,9 @@ public class DragonBox {
 	};
 
 	public static void benchmark() {
-		var jw = new JsonWriter();
-		var n = 0L;
-		var t = System.nanoTime();
+		JsonWriter jw = new JsonWriter();
+		long n = 0L;
+		long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			for (int j = 0; j < 8; j++) {
 //				n += Double.toString(tests[j]).length();
@@ -1337,7 +1337,7 @@ public class DragonBox {
 		System.out.format("    JasonWriter: %d (%d ms)%n", n, (System.nanoTime() - t) / 1_000_000); // 660000000
 
 		n = 0L;
-		var buf = new byte[MAX_FLOAT_BYTES];
+		byte[] buf = new byte[MAX_FLOAT_BYTES];
 		t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			for (int j = 0; j < 8; j++) {
@@ -1389,7 +1389,7 @@ public class DragonBox {
 		System.out.println(unsignedDecimalLen(10000));
 		System.out.println(unsignedDecimalLen(10001));
 		System.out.println(unsignedDecimalLen(-1));
-		var a = 0;
+		int a = 0;
 		for (int i = 0; i < 1_000_000; i++)
 			a += unsignedDecimalLen(i);
 		System.out.println(a);
@@ -1411,12 +1411,12 @@ public class DragonBox {
 		//System.out.println((long)d);
 		System.out.format("%.20f\n", d);
 
-		var jw = JsonWriter.local();
+		JsonWriter jw = JsonWriter.local();
 		jw.write(d);
 		System.out.println(jw);
 
-		var buf = new byte[MAX_DOUBLE_BYTES];
-		var pos = writeDouble(0.9639801287119913, buf, 0);
+		byte[] buf = new byte[MAX_DOUBLE_BYTES];
+		int pos = writeDouble(0.9639801287119913, buf, 0);
 		System.out.println(new String(buf, 0, pos, StandardCharsets.ISO_8859_1));
 
 		System.out.println(Double.doubleToRawLongBits(0.9639801287119913));
@@ -1426,15 +1426,15 @@ public class DragonBox {
 	}
 
 	public static void main(String[] args) {
-//		var buf = new byte[MAX_FLOAT_BYTES];
-//		var f = 1.5258789E-5f;
+//		byte[] buf = new byte[MAX_FLOAT_BYTES];
+//		float f = 1.5258789E-5f;
 //		int p = writeFloat(f, buf, 0);
-//		var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+//		String s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
 //		System.out.println(s);
 //		System.out.println(Float.parseFloat(s));
 //		System.out.println(f);
 
-//		var buf = new byte[MAX_DOUBLE_BYTES];
+//		byte[] buf = new byte[MAX_DOUBLE_BYTES];
 //		int p = writeDouble(1.0, buf, 0);
 //		System.out.println(new String(buf, 0, p, StandardCharsets.ISO_8859_1));
 
