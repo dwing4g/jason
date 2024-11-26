@@ -5,7 +5,19 @@ import java.util.concurrent.ThreadLocalRandom;
 
 //ref: https://github.com/jk-jeon/dragonbox/tree/master/subproject/simple
 public class DragonBox {
-	private static final long[] DOUBLE_TABLE = new long[]{ // uint128(high,low)[619]
+	private static final byte[] DIGITES_LUT = { // [200]
+			'0', '0', '0', '1', '0', '2', '0', '3', '0', '4', '0', '5', '0', '6', '0', '7', '0', '8', '0', '9', '1',
+			'0', '1', '1', '1', '2', '1', '3', '1', '4', '1', '5', '1', '6', '1', '7', '1', '8', '1', '9', '2', '0',
+			'2', '1', '2', '2', '2', '3', '2', '4', '2', '5', '2', '6', '2', '7', '2', '8', '2', '9', '3', '0', '3',
+			'1', '3', '2', '3', '3', '3', '4', '3', '5', '3', '6', '3', '7', '3', '8', '3', '9', '4', '0', '4', '1',
+			'4', '2', '4', '3', '4', '4', '4', '5', '4', '6', '4', '7', '4', '8', '4', '9', '5', '0', '5', '1', '5',
+			'2', '5', '3', '5', '4', '5', '5', '5', '6', '5', '7', '5', '8', '5', '9', '6', '0', '6', '1', '6', '2',
+			'6', '3', '6', '4', '6', '5', '6', '6', '6', '7', '6', '8', '6', '9', '7', '0', '7', '1', '7', '2', '7',
+			'3', '7', '4', '7', '5', '7', '6', '7', '7', '7', '8', '7', '9', '8', '0', '8', '1', '8', '2', '8', '3',
+			'8', '4', '8', '5', '8', '6', '8', '7', '8', '8', '8', '9', '9', '0', '9', '1', '9', '2', '9', '3', '9',
+			'4', '9', '5', '9', '6', '9', '7', '9', '8', '9', '9'};
+
+	private static final long[] DOUBLE_TABLE = { // uint128(high,low)[619]
 			0xff77b1fcbebcdc4fL, 0x25e8e89c13bb0f7bL,
 			0x9faacf3df73609b1L, 0x77b191618c54e9adL,
 			0xc795830d75038c1dL, 0xd59df5b9ef6a2418L,
@@ -640,7 +652,7 @@ public class DragonBox {
 		final int DIVIDE_MAGIC_NUMBER = 656; // KAPPA == 1 ? 6554 : 656;
 		final int BIG_DIVISOR = 1000;
 		final long u = Double.doubleToRawLongBits(f);
-		final long u2 = u << 1;
+		final long u2 = u * 2;
 		if (u2 == 0) {
 			if (u < 0)
 				buf[pos++] = '-';
@@ -756,39 +768,192 @@ public class DragonBox {
 				exp = minusK + s + KAPPA + 1;
 			}
 		} while (false);
-		if (num < 10)
-			buf[pos++] = (byte)('0' + num);
-		else {
-			int begin = pos;
-			do {
-				buf[pos++] = (byte)('0' + num % 10);
-				num /= 10;
-				exp++;
-			} while (num >= 10);
-			buf[pos++] = '.';
-			buf[pos++] = (byte)('0' + num);
-			for (int e = pos; begin < --e; ) {
-				byte b = buf[begin];
-				buf[begin++] = buf[e];
-				buf[e] = b;
-			}
-		}
+		final int p = write(num, buf, pos);
+		final int d = p - pos - 2;
+		pos = p;
+		if (d > 0)
+			exp += d;
 		if (exp != 0) {
 			buf[pos++] = 'e';
 			if (exp < 0) {
 				exp = -exp;
 				buf[pos++] = '-';
 			}
-			int begin = pos;
-			do {
-				buf[pos++] = (byte)('0' + exp % 10);
-				exp /= 10;
-			} while (exp != 0);
-			for (int e = pos; begin < --e; ) {
-				byte b = buf[begin];
-				buf[begin++] = buf[e];
-				buf[e] = b;
+			if (exp < 10)
+				buf[pos++] = (byte)('0' + exp);
+			else if (exp < 100) {
+				exp <<= 1;
+				buf[pos++] = DIGITES_LUT[exp];
+				buf[pos++] = DIGITES_LUT[exp + 1];
+			} else {
+				buf[pos++] = (byte)('0' + exp / 100);
+				exp = (exp % 100) << 1;
+				buf[pos++] = DIGITES_LUT[exp];
+				buf[pos++] = DIGITES_LUT[exp + 1];
 			}
+		}
+		return pos;
+	}
+
+	private static int write(long value, byte[] buf, int pos) {
+		if (value < 1_0000_0000) {
+			int v = (int)value;
+			if (v < 1_0000) {
+				if (v < 10)
+					buf[pos++] = (byte)('0' + v);
+				else {
+					final int d1 = (v / 100) << 1;
+					final int d2 = (v % 100) << 1;
+					if (v >= 100) {
+						if (v >= 1000) {
+							buf[pos++] = DIGITES_LUT[d1];
+							buf[pos++] = '.';
+							buf[pos++] = DIGITES_LUT[d1 + 1];
+						} else {
+							buf[pos++] = DIGITES_LUT[d1 + 1];
+							buf[pos++] = '.';
+						}
+						buf[pos++] = DIGITES_LUT[d2];
+					} else {
+						buf[pos++] = DIGITES_LUT[d2];
+						buf[pos++] = '.';
+					}
+					buf[pos++] = DIGITES_LUT[d2 + 1];
+				}
+			} else { // value = bbbb_cccc
+				final int b = v / 1_0000;
+				final int c = v % 1_0000;
+				final int d3 = (c / 100) << 1;
+				final int d4 = (c % 100) << 1;
+				if (v < 10_0000) {
+					buf[pos++] = (byte)('0' + b);
+					buf[pos++] = '.';
+				} else {
+					final int d1 = (b / 100) << 1;
+					final int d2 = (b % 100) << 1;
+					if (v >= 100_0000) {
+						if (v >= 1000_0000) {
+							buf[pos++] = DIGITES_LUT[d1];
+							buf[pos++] = '.';
+							buf[pos++] = DIGITES_LUT[d1 + 1];
+						} else {
+							buf[pos++] = DIGITES_LUT[d1 + 1];
+							buf[pos++] = '.';
+						}
+						buf[pos++] = DIGITES_LUT[d2];
+					} else {
+						buf[pos++] = DIGITES_LUT[d2];
+						buf[pos++] = '.';
+					}
+					buf[pos++] = DIGITES_LUT[d2 + 1];
+				}
+				buf[pos++] = DIGITES_LUT[d3];
+				buf[pos++] = DIGITES_LUT[d3 + 1];
+				buf[pos++] = DIGITES_LUT[d4];
+				buf[pos++] = DIGITES_LUT[d4 + 1];
+			}
+		} else if (value < 1_0000_0000_0000_0000L) {
+			final int v0 = (int)(value / 1_0000_0000);
+			final int v1 = (int)(value % 1_0000_0000);
+			final int b1 = v1 / 1_0000;
+			final int c1 = v1 % 1_0000;
+			final int d5 = (b1 / 100) << 1;
+			final int d6 = (b1 % 100) << 1;
+			final int d7 = (c1 / 100) << 1;
+			final int d8 = (c1 % 100) << 1;
+			if (value < 10_0000_0000L) {
+				buf[pos++] = (byte)('0' + v0);
+				buf[pos++] = '.';
+			} else {
+				final int d4 = (v0 % 100) << 1;
+				if (value >= 100_0000_0000L) {
+					final int v2 = v0 / 100;
+					final int d3 = (v2 % 100) << 1;
+					if (value >= 1000_0000_0000L) {
+						if (value >= 1_0000_0000_0000L) {
+							final int v3 = v2 / 100;
+							final int d2 = (v3 % 100) << 1;
+							if (value >= 10_0000_0000_0000L) {
+								if (value >= 100_0000_0000_0000L) {
+									final int d1 = (v3 / 100 % 100) << 1;
+									if (value >= 1000_0000_0000_0000L) {
+										buf[pos++] = DIGITES_LUT[d1];
+										buf[pos++] = '.';
+										buf[pos++] = DIGITES_LUT[d1 + 1];
+									} else {
+										buf[pos++] = DIGITES_LUT[d1 + 1];
+										buf[pos++] = '.';
+									}
+									buf[pos++] = DIGITES_LUT[d2];
+								} else {
+									buf[pos++] = DIGITES_LUT[d2];
+									buf[pos++] = '.';
+								}
+								buf[pos++] = DIGITES_LUT[d2 + 1];
+							} else {
+								buf[pos++] = DIGITES_LUT[d2 + 1];
+								buf[pos++] = '.';
+							}
+							buf[pos++] = DIGITES_LUT[d3];
+						} else {
+							buf[pos++] = DIGITES_LUT[d3];
+							buf[pos++] = '.';
+						}
+						buf[pos++] = DIGITES_LUT[d3 + 1];
+					} else {
+						buf[pos++] = DIGITES_LUT[d3 + 1];
+						buf[pos++] = '.';
+					}
+					buf[pos++] = DIGITES_LUT[d4];
+				} else {
+					buf[pos++] = DIGITES_LUT[d4];
+					buf[pos++] = '.';
+				}
+				buf[pos++] = DIGITES_LUT[d4 + 1];
+			}
+			buf[pos++] = DIGITES_LUT[d5];
+			buf[pos++] = DIGITES_LUT[d5 + 1];
+			buf[pos++] = DIGITES_LUT[d6];
+			buf[pos++] = DIGITES_LUT[d6 + 1];
+			buf[pos++] = DIGITES_LUT[d7];
+			buf[pos++] = DIGITES_LUT[d7 + 1];
+			buf[pos++] = DIGITES_LUT[d8];
+			buf[pos++] = DIGITES_LUT[d8 + 1];
+		} else { // if (value < 10_0000_0000_0000_0000L)
+			final int a = (int)(value / 1_0000_0000_0000_0000L); // [1,922]
+			value %= 1_0000_0000_0000_0000L;
+			final int v0 = (int)(value / 1_0000_0000);
+			final int v1 = (int)(value % 1_0000_0000);
+			final int b0 = v0 / 1_0000;
+			final int c0 = v0 % 1_0000;
+			final int d1 = (b0 / 100) << 1;
+			final int d2 = (b0 % 100) << 1;
+			final int d3 = (c0 / 100) << 1;
+			final int d4 = (c0 % 100) << 1;
+			final int b1 = v1 / 1_0000;
+			final int c1 = v1 % 1_0000;
+			final int d5 = (b1 / 100) << 1;
+			final int d6 = (b1 % 100) << 1;
+			final int d7 = (c1 / 100) << 1;
+			final int d8 = (c1 % 100) << 1;
+			buf[pos++] = (byte)('0' + a);
+			buf[pos++] = '.';
+			buf[pos++] = DIGITES_LUT[d1];
+			buf[pos++] = DIGITES_LUT[d1 + 1];
+			buf[pos++] = DIGITES_LUT[d2];
+			buf[pos++] = DIGITES_LUT[d2 + 1];
+			buf[pos++] = DIGITES_LUT[d3];
+			buf[pos++] = DIGITES_LUT[d3 + 1];
+			buf[pos++] = DIGITES_LUT[d4];
+			buf[pos++] = DIGITES_LUT[d4 + 1];
+			buf[pos++] = DIGITES_LUT[d5];
+			buf[pos++] = DIGITES_LUT[d5 + 1];
+			buf[pos++] = DIGITES_LUT[d6];
+			buf[pos++] = DIGITES_LUT[d6 + 1];
+			buf[pos++] = DIGITES_LUT[d7];
+			buf[pos++] = DIGITES_LUT[d7 + 1];
+			buf[pos++] = DIGITES_LUT[d8];
+			buf[pos++] = DIGITES_LUT[d8 + 1];
 		}
 		return pos;
 	}
@@ -802,11 +967,10 @@ public class DragonBox {
 				final var f = Double.longBitsToDouble(d + i);
 				final var p = writeDouble(f, buf, 0);
 				// buf[p] = 0;
-				final var f2 = Double.parseDouble(new String(buf, 0, p, StandardCharsets.ISO_8859_1)); // jr.buf(buf).parseDouble();
-				if (f != f2) {
-					throw new AssertionError("testRange[" + i + "]: " + f + " != " + f2
-							+ ", " + new String(buf, 0, p, StandardCharsets.ISO_8859_1));
-				}
+				final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+				final var f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
+				if (f != f2)
+					throw new AssertionError("testRange[" + i + "]: " + f + " != " + f2 + ", " + s);
 			}
 		}
 		System.out.println("testRange OK!");
@@ -820,11 +984,10 @@ public class DragonBox {
 			final var f = r.nextDouble();
 			final var p = writeDouble(f, buf, 0);
 			// buf[p] = 0;
-			final var f2 = Double.parseDouble(new String(buf, 0, p, StandardCharsets.ISO_8859_1)); // jr.buf(buf).parseDouble();
-			if (f != f2) {
-				throw new AssertionError("testRandom[" + i + "]: " + f + " != " + f2
-						+ ", " + new String(buf, 0, p, StandardCharsets.ISO_8859_1));
-			}
+			final var s = new String(buf, 0, p, StandardCharsets.ISO_8859_1);
+			final var f2 = Double.parseDouble(s); // jr.buf(buf).parseDouble();
+			if (f != f2)
+				throw new AssertionError("testRandom[" + i + "]: " + f + " != " + f2 + ", " + s);
 		}
 		System.out.println("testRandom OK!");
 	}
@@ -859,8 +1022,9 @@ public class DragonBox {
 		System.out.println(JsonReader.local().buf("0.9639801287119913 ").parseDouble());
 	}
 
-	private static final double[] testNums = {3.1234567, 31234567, 0.31234567, 312.34567, 3.1234567e7, 3.1234567E-7, 0,
-			1.0};
+	private static final double[] testNums = {
+			3.1234567, 31234567, 0.31234567, 312.34567, 3.1234567e7, 3.1234567E-7, 0, 1.0
+	};
 
 	public static void benchmark() {
 		var jw = new JsonWriter();
@@ -886,46 +1050,45 @@ public class DragonBox {
 		System.out.format("     DragonBox: %d (%d ms)%n", n, (System.nanoTime() - t) / 1_000_000); // 660000000
 	}
 
-	private static final byte[] LEN_TABLE = { // [64]
-			19, 19, 19, 19, 18, 18, 18, 17, 17, 17, 16, 16, 16, 16, 15, 15,
-			15, 14, 14, 14, 13, 13, 13, 13, 12, 12, 12, 11, 11, 11, 10, 10,
-			10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 7, 7, 6, 6, 6, 5,
-			5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1,
+	private static final byte[] LEN_TABLE = { // [65] index=numberOfLeadingZeros
+			19, 19, 19, 19, 18, 18, 18, 17, 17, 17, 16, 16, 16, 16, 15, 15, // 0~15
+			15, 14, 14, 14, 13, 13, 13, 13, 12, 12, 12, 11, 11, 11, 10, 10, // 16~31
+			10, 10, 9, 9, 9, 8, 8, 8, 7, 7, 7, 7, 6, 6, 6, 5, // 32~47
+			5, 5, 4, 4, 4, 4, 3, 3, 3, 2, 2, 2, 1, 1, 1, 1, 1 // 48~64
 	};
 
-	@SuppressWarnings("NumericOverflow")
-	private static final long[] CMP_TABLE = { // [20]
-			1L,
-			10L,
-			100L,
-			1000L,
-			10000L,
-			100000L,
-			1000000L,
-			10000000L,
-			100000000L,
-			1000000000L,
-			10000000000L,
-			100000000000L,
-			1000000000000L,
-			10000000000000L,
-			100000000000000L,
-			1000000000000000L,
-			10000000000000000L,
-			100000000000000000L,
-			1000000000000000000L,
-			1000000000000000000L * 10,
+	private static final long[] POW10M1 = { // [20]
+			0, 9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, 9999999999L, 99999999999L, 999999999999L,
+			9999999999999L, 99999999999999L, 999999999999999L, 9999999999999999L, 99999999999999999L,
+			999999999999999999L, 0x8AC7_2304_89E7_FFFFL,
 	};
 
-	public static int decimalLen(long u) {
+	public static int unsignedDecimalLen(long u) { // return:1~20
 		int n = LEN_TABLE[Long.numberOfLeadingZeros(u)];
-		return n;
+		return n + (int)((POW10M1[n] - u) >>> 63);
+	}
+
+
+	public static void testUnsignedDecimalLen() {
+		System.out.println(unsignedDecimalLen(0));
+		System.out.println(unsignedDecimalLen(1));
+		System.out.println(unsignedDecimalLen(2));
+		System.out.println(unsignedDecimalLen(9999));
+		System.out.println(unsignedDecimalLen(10000));
+		System.out.println(unsignedDecimalLen(10001));
+		System.out.println(unsignedDecimalLen(-1));
+		var a = 0;
+		for (int i = 0; i < 1_000_000; i++)
+			a += unsignedDecimalLen(i);
+		System.out.println(a);
 	}
 
 	public static void main(String[] args) {
 //		var buf = new byte[MAX_LEN];
 //		int p = toChars(1.0, buf, 0);
 //		System.out.println(new String(buf, 0, p, StandardCharsets.ISO_8859_1));
+
+//		testUnsignedDecimalLen();
 
 		testRange();
 		testRandom();
