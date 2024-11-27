@@ -426,9 +426,13 @@ public final class Json implements Cloneable {
 			stringCtorMH = ensureNonNull(lookup.unreflectConstructor(setAccessible(BYTE_STRING
 					? String.class.getDeclaredConstructor(byte[].class, byte.class)
 					: String.class.getDeclaredConstructor(char[].class, boolean.class))));
-			String v = System.getProperty("java.version");
-			int p = v.indexOf('.');
-			javaVersion = Integer.parseInt(p < 0 ? v : v.substring(0, p));
+			int ver = 0;
+			for (char c : System.getProperty("java.version").toCharArray()) {
+				if (c < '0' || c > '9')
+					break;
+				ver = ver * 10 + c - '0';
+			}
+			javaVersion = ver;
 		} catch (ReflectiveOperationException e) {
 			throw new ExceptionInInitializerError(e);
 		}

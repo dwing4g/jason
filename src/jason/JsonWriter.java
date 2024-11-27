@@ -814,17 +814,17 @@ public final class JsonWriter {
 
 		final long cmkf = CACHED_POWERS_F[idx]; // highest bit == 1
 		if (javaVersion >= 18) { // for JDK18+
-			f = umulHigh18(f, cmkf);
-			pf = umulHigh18(pf, cmkf);
-			mf = umulHigh18(mf, cmkf);
+			f = umulHigh18(f, cmkf) + ((f * cmkf) >>> 63);
+			pf = umulHigh18(pf, cmkf) + ((pf * cmkf) >>> 63);
+			mf = umulHigh18(mf, cmkf) + ((mf * cmkf) >>> 63);
 		} else if (javaVersion >= 9) { // for JDK9+
-			f = umulHigh9(f, cmkf);
-			pf = umulHigh9(pf, cmkf);
-			mf = umulHigh9(mf, cmkf);
+			f = umulHigh9(f, cmkf) + ((f * cmkf) >>> 63);
+			pf = umulHigh9(pf, cmkf) + ((pf * cmkf) >>> 63);
+			mf = umulHigh9(mf, cmkf) + ((mf * cmkf) >>> 63);
 		} else { // for JDK8-
-			f = umulHigh(f, cmkf);
-			pf = umulHigh(pf, cmkf);
-			mf = umulHigh(mf, cmkf);
+			f = umulHigh(f, cmkf) + ((f * cmkf) >>> 63);
+			pf = umulHigh(pf, cmkf) + ((pf * cmkf) >>> 63);
+			mf = umulHigh(mf, cmkf) + ((mf * cmkf) >>> 63);
 		}
 		e = -(pe + CACHED_POWERS_E[idx] + 64);
 		long delta = pf-- - mf - 2;
