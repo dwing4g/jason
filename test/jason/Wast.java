@@ -468,7 +468,7 @@ public final class Wast {
 				return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 			}
 			long e2 = e10 - leadingZeros + ed5.dfb + sr + 1140;
-			if ((h & mask) != mask || ((h >> (sr - 1)) & 1) == 1)
+			if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
 				return longBitsToIntegerDouble(h, e2, sr);
 			long l = left * ed5.y;
 			if (!checkLowCarry(l, left, ed5.f + 1)) // tail h like 01111111
@@ -503,7 +503,7 @@ public final class Wast {
 		int sr = h >= 1L << 61 ? 9 : 8;
 		int mask = (1 << (sr - 1)) - 1;
 		int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
-		if ((h & mask) != mask || ((h >> (sr - 1)) & 1) == 1)
+		if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
 			return longBitsToDecimalDouble(h, e52, sr);
 		long l = left * ed5.oy;
 		if (!checkLowCarry(l, left, ed5.of + 1)) // tail h like 01111111
@@ -563,7 +563,7 @@ public final class Wast {
 					break;
 			} else if (b == '.')
 				dotPos = pos + 1;
-			else if (b == 'e' || b == 'E') {
+			else if ((b | 0x20) == 'e') { // b == 'e' || b == 'E'
 				if (dotPos != 0) {
 					s += pos - dotPos;
 					dotPos = 0;
