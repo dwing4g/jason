@@ -1,5 +1,7 @@
 package jason;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 public final class TestNumberParser {
 	public static void testReader() {
 		byte[][] tests = {"3.1234567 ".getBytes(), "31234567 ".getBytes(), "0.31234567 ".getBytes(),
@@ -29,7 +31,25 @@ public final class TestNumberParser {
 		System.out.format("%s.testWriter: %d\n", TestNumberParser.class.getSimpleName(), n); // 660000000
 	}
 
+	public static void testRandomParser() {
+		final JsonReader jr = JsonReader.local();
+		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		for (int i = 0; i < 10_000_000; i++) {
+			long v;
+			do
+				v = r.nextLong();
+			while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
+			final double f = Double.longBitsToDouble(v);
+			final double f2 = jr.buf(f + " ").parseDouble();
+			if (f != f2 && !(Double.isNaN(f) && Double.isNaN(f2)))
+				throw new AssertionError("testRandomParser[" + i + "]: " + f + " != " + f2);
+		}
+		System.out.println("testRandomParser OK!");
+	}
+
 	public static void main(String[] args) {
+//		testRandomParser();
+
 		long t = System.nanoTime();
 		testReader();
 		System.out.println(TestNumberParser.class.getSimpleName() + ".testReader: " +
