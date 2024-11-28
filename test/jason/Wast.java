@@ -606,8 +606,8 @@ public final class Wast {
 			"0 ".getBytes(), "1.0 ".getBytes()};
 
 	public static void benchmarkWastParser() {
-		var r = 0.0;
-		var t = System.nanoTime();
+		double r = 0.0;
+		long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			for (int j = 0; j < 8; j++)
 				r += parseDoubleWast(testBytes[j], 0);
