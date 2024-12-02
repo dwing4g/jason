@@ -1989,20 +1989,20 @@ public class DragonBox {
 				long g = G[k + 324 << 1] + 1;
 				int vb;
 				{
-					long x1 = Math.unsignedMultiplyHigh(g, cb << h);
+					long x1 = Math.multiplyHigh(g, cb << h);
 					long vbp = x1 >>> 31;
 					vb = (int)(vbp | (x1 & MASK_32) + MASK_32 >>> 32);
 				}
 				int vbl;
 				{
-					long x1 = Math.unsignedMultiplyHigh(g, cbl << h);
+					long x1 = Math.multiplyHigh(g, cbl << h);
 					long vbp = x1 >>> 31;
 					vbl = (int)(vbp | (x1 & MASK_32) + MASK_32 >>> 32);
 				}
 
 				int vbr;
 				{
-					long x1 = Math.unsignedMultiplyHigh(g, cbr << h);
+					long x1 = Math.multiplyHigh(g, cbr << h);
 					long vbp = x1 >>> 31;
 					vbr = (int)(vbp | (x1 & MASK_32) + MASK_32 >>> 32);
 				}
@@ -2046,7 +2046,7 @@ public class DragonBox {
 
 			if (0 < e && e <= 7) {
 				buf[++index] = (byte)('0' + h1);
-				int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+				int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 				int t1;
 				int i = 1;
 				for (; i < e; ++i) {
@@ -2074,7 +2074,7 @@ public class DragonBox {
 				buf[++index] = (byte)('0' + h1);
 
 				// append8Digits(l);
-				int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+				int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 				for (int i = 0; i < 8; ++i) {
 					int t1 = y * 10;
 					buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2090,7 +2090,7 @@ public class DragonBox {
 				buf[2 + index] = '.';
 				index += 2;
 
-				int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+				int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 				for (int i = 0; i < 8; ++i) {
 					int t1 = y * 10;
 					buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2203,28 +2203,28 @@ public class DragonBox {
 				long vb;
 				{
 					long cp = cb << h;
-					long z = ((g1 * cp) >>> 1) + Math.unsignedMultiplyHigh(g0, cp);
-					long vbp = Math.unsignedMultiplyHigh(g1, cp) + (z >>> 63);
+					long z = ((g1 * cp) >>> 1) + Math.multiplyHigh(g0, cp);
+					long vbp = Math.multiplyHigh(g1, cp) + (z >>> 63);
 					vb = vbp | (z & 9223372036854775807L) + 9223372036854775807L >>> 63;
 				}
 				long vbl;
 				{
 					long cp = cbl << h;
-					long z = ((g1 * cp) >>> 1) + Math.unsignedMultiplyHigh(g0, cp);
-					long vbp = Math.unsignedMultiplyHigh(g1, cp) + (z >>> 63);
+					long z = ((g1 * cp) >>> 1) + Math.multiplyHigh(g0, cp);
+					long vbp = Math.multiplyHigh(g1, cp) + (z >>> 63);
 					vbl = vbp | (z & 9223372036854775807L) + 9223372036854775807L >>> 63;
 				}
 				long vbr;
 				{
 					long cp = cbr << h;
-					long z = ((g1 * cp) >>> 1) + Math.unsignedMultiplyHigh(g0, cp);
-					long vbp = Math.unsignedMultiplyHigh(g1, cp) + (z >>> 63);
+					long z = ((g1 * cp) >>> 1) + Math.multiplyHigh(g0, cp);
+					long vbp = Math.multiplyHigh(g1, cp) + (z >>> 63);
 					vbr = vbp | (z & 9223372036854775807L) + 9223372036854775807L >>> 63;
 				}
 
 				long s = vb >> 2;
 				if (s >= 100) {
-					long sp10 = Math.unsignedMultiplyHigh(s, 115_292_150_460_684_698L << 4) * 10;
+					long sp10 = Math.multiplyHigh(s, 115_292_150_460_684_698L << 4) * 10;
 					long tp10 = sp10 + 10;
 					boolean upin = vbl + out <= sp10 << 2;
 					boolean wpin = (tp10 << 2) + out <= vbr;
@@ -2257,7 +2257,7 @@ public class DragonBox {
 			f *= POW10[H - len];
 			e += len;
 
-			long hm = Math.unsignedMultiplyHigh(f, 193_428_131_138_340_668L) >>> 20;
+			long hm = Math.multiplyHigh(f, 193_428_131_138_340_668L) >>> 20;
 			int l = (int)(f - hm * 100_000_000L);
 			int h = (int)(hm * 1_441_151_881L >>> 57);
 			int m = (int)(hm - h * 100_000_000);
@@ -2266,7 +2266,7 @@ public class DragonBox {
 				final int MASK_28 = 268435455;
 				{
 					buf[++index] = (byte)('0' + h);
-					int y = (int)(Math.unsignedMultiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+					int y = (int)(Math.multiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 					int t1;
 					int i = 1;
 					for (; i < e; ++i) {
@@ -2283,7 +2283,7 @@ public class DragonBox {
 				}
 
 				if (l != 0) {
-					int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+					int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 					for (int i = 0; i < 8; ++i) {
 						int t1 = y * 10;
 						buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2306,7 +2306,7 @@ public class DragonBox {
 
 				final int MASK_28 = 268435455;
 				{
-					int y = (int)(Math.unsignedMultiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+					int y = (int)(Math.multiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 					for (int i = 0; i < 8; ++i) {
 						int t1 = y * 10;
 						buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2315,7 +2315,7 @@ public class DragonBox {
 				}
 
 				if (l != 0) {
-					int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+					int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 					for (int i = 0; i < 8; ++i) {
 						int t1 = y * 10;
 						buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2335,7 +2335,7 @@ public class DragonBox {
 
 			final int MASK_28 = 268435455;
 			{
-				int y = (int)(Math.unsignedMultiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+				int y = (int)(Math.multiplyHigh((long)(m + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 				for (int i = 0; i < 8; ++i) {
 					int t1 = y * 10;
 					buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2344,7 +2344,7 @@ public class DragonBox {
 			}
 
 			if (l != 0) {
-				int y = (int)(Math.unsignedMultiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
+				int y = (int)(Math.multiplyHigh((long)(l + 1) << 28, 193_428_131_138_340_668L) >>> 20) - 1;
 				for (int i = 0; i < 8; ++i) {
 					int t1 = y * 10;
 					buf[++index] = (byte)('0' + (t1 >>> 28));
@@ -2666,9 +2666,12 @@ public class DragonBox {
 	};
 
 	public static void benchmark() {
+		long n, t;
+		byte[] buf;
+
 		JsonWriter jw = new JsonWriter();
-		long n = 0L;
-		long t = System.nanoTime();
+		n = 0L;
+		t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			for (int j = 0; j < 8; j++) {
 //				n += Double.toString(tests[j]).length();
@@ -2681,7 +2684,7 @@ public class DragonBox {
 		System.out.format("    JasonWriter: %d (%d ms)%n", n, (System.nanoTime() - t) / 1_000_000); // 660000000
 
 		n = 0L;
-		byte[] buf = new byte[MAX_FLOAT_BYTES];
+		buf = new byte[MAX_FLOAT_BYTES];
 		t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			for (int j = 0; j < 8; j++) {
