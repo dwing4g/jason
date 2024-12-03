@@ -10,7 +10,7 @@ public final class Wast {
 		static final ED5[] ED5_A = new ED5[343];
 
 		static {
-			long[][] ed5datas = {
+			final long[][] ed5datas = {
 					{0x4000000000000000L, 0, 0, 0x8000000000000000L, 31, 0},
 					{0x5000000000000000L, 0, 0, 0x6666666666666666L, 33, 1717986918},
 					{0x6400000000000000L, 0, 0, 0x51eb851eb851eb85L, 35, 515396075},
@@ -366,7 +366,7 @@ public final class Wast {
 		final long of;
 		final short ob;
 
-		private ED5(long[] data) {
+		private ED5(final long[] data) {
 			this.y = data[0];
 			this.f = data[1] & 0xffff_ffffL;
 			this.dfb = (short)data[2];
@@ -378,15 +378,15 @@ public final class Wast {
 
 	private static final long MOD_DOUBLE_MANTISSA = (1L << 52) - 1;
 	private static final double[] POSITIVE_DECIMAL_POWER = new double[39];
-	private static final double[] POSITIVE_DECIMAL_POWER_M = new double[64];
+	private static final double[] NEGTIVE_DECIMAL_POWER = new double[64];
 	private static final long[] POW5_LONG_VALUES = new long[27];
 	private static final BigInteger[] POW5_BI_VALUES = new BigInteger[343];
 
 	static {
 		for (int i = 0; i < POSITIVE_DECIMAL_POWER.length; i++)
 			POSITIVE_DECIMAL_POWER[i] = Math.pow(10, i);
-		for (int i = 0; i < POSITIVE_DECIMAL_POWER_M.length; i++)
-			POSITIVE_DECIMAL_POWER_M[i] = Math.pow(10, -i);
+		for (int i = 0; i < NEGTIVE_DECIMAL_POWER.length; i++)
+			NEGTIVE_DECIMAL_POWER[i] = Math.pow(10, -i);
 
 		long val = 1;
 		for (int i = 0; i < POW5_LONG_VALUES.length; i++) {
@@ -394,7 +394,7 @@ public final class Wast {
 			val *= 5;
 		}
 
-		BigInteger five = BigInteger.valueOf(5);
+		final BigInteger five = BigInteger.valueOf(5);
 		POW5_BI_VALUES[0] = BigInteger.ONE;
 		for (int i = 1; i < POW5_BI_VALUES.length; i++)
 			POW5_BI_VALUES[i] = five.pow(i);
@@ -417,7 +417,7 @@ public final class Wast {
 			e2 = e52 + 1075;
 			mantissa0 = ((l62 >>> (sr - 1)) + 1) >> 1;
 			if (mantissa0 == 1L << 53) {
-				mantissa0 >>= 1;
+				mantissa0 = 1L << 52;
 				e2++;
 			}
 		}
@@ -445,15 +445,13 @@ public final class Wast {
 		final long diff;
 		long mantissa0, e2;
 		if (scale > 0) {
+			if ((long)dv == val && scale < 23) {
+				if (val <= Integer.MAX_VALUE)
+					return dv * NEGTIVE_DECIMAL_POWER[scale];
+				return dv / POSITIVE_DECIMAL_POWER[scale];
+			}
 			if (scale > 342)
 				return 0;
-			if ((long)dv == val) {
-				if (scale < 23) {
-					if (val < 0x2_0000_0000L)
-						return dv * POSITIVE_DECIMAL_POWER_M[scale];
-					return dv / POSITIVE_DECIMAL_POWER[scale];
-				}
-			}
 			final ED5 ed5 = ED5.ED5_A[scale];
 			final int leadingZeros = Long.numberOfLeadingZeros(val);
 			final long left = val << (leadingZeros - 1);
@@ -496,10 +494,10 @@ public final class Wast {
 					.compareTo(POW5_BI_VALUES[scale].multiply(BigInteger.valueOf((mantissa0 << 1) + 1)));
 		} else {
 			final int e10 = -scale;
-			if (e10 > 308)
-				return Double.POSITIVE_INFINITY;
 			if ((long)dv == val && e10 < 23)
 				return dv * POSITIVE_DECIMAL_POWER[e10];
+			if (e10 > 308)
+				return Double.POSITIVE_INFINITY;
 			final BigInteger multiplier = POW5_BI_VALUES[e10];
 			final ED5 ed5 = ED5.ED5_A[e10];
 			final int leadingZeros = Long.numberOfLeadingZeros(val);
@@ -540,7 +538,7 @@ public final class Wast {
 					.compareTo(BigInteger.valueOf((mantissa0 << 1) + 1).shiftLeft(-1 + e52 - e10));
 		}
 		if ((diff > 0 || diff == 0 && (mantissa0 & 1) == 1) && ++mantissa0 == 1L << 53) {
-			mantissa0 >>= 1;
+			mantissa0 = 1L << 52;
 			e2++;
 		}
 		return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
@@ -587,16 +585,11 @@ public final class Wast {
 	}
 
 	private static float scientificToIEEEFloat(final long val, final int scale) {
-		if (scale > 0) {
-			if (scale > 63)
-				return 0;
-			return (float)(val * POSITIVE_DECIMAL_POWER_M[scale]);
-		}
+		if (scale > 0)
+			return scale < 64 ? (float)(val * NEGTIVE_DECIMAL_POWER[scale]) : 0;
 		if (scale == 0)
 			return val;
-		if (scale < -38)
-			return Float.POSITIVE_INFINITY;
-		return (float)(val * POSITIVE_DECIMAL_POWER[-scale]);
+		return scale > -39 ? (float)(val * POSITIVE_DECIMAL_POWER[-scale]) : Float.POSITIVE_INFINITY;
 	}
 
 	public static float parseFloatWast(final byte[] buf, int pos) {
@@ -686,7 +679,7 @@ public final class Wast {
 	}
 
 	public static void main(String[] args) {
-//		System.out.println(parseDoubleWast("9.49113649602955E-309 ".getBytes(), 0));
+//		System.out.println(parseDoubleWast("375857.6195 ".getBytes(), 0));
 
 		for (int i = 0; i < 5; i++)
 			testRandomWastDoubleParser();
