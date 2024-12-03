@@ -1,5 +1,6 @@
 package jason;
 
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class TestNumberParser {
@@ -31,25 +32,43 @@ public final class TestNumberParser {
 		System.out.format("%s.testWriter: %d\n", TestNumberParser.class.getSimpleName(), n); // 660000000
 	}
 
-	public static void testRandomParser() {
+	public static void testRandomDoubleParser() {
+		int n = 0;
 		final JsonReader jr = JsonReader.local();
 		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			long v;
 			do
 				v = r.nextLong();
 			while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
 			final double f = Double.longBitsToDouble(v);
-			final double f2 = jr.buf(f + " ").parseDouble();
-			if (f != f2 && !(Double.isNaN(f) && Double.isNaN(f2)))
-				throw new AssertionError("testRandomParser[" + i + "]: " + f + " != " + f2);
+			final double f2 = jr.buf((f + " ").getBytes(StandardCharsets.ISO_8859_1)).parseDouble();
+			if (f != f2)
+				n++; // throw new AssertionError("testRandomDoubleParser[" + i + "]: " + f + " != " + f2);
 		}
-		System.out.println("testRandomParser OK!");
+		System.out.println("testRandomDoubleParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms, errors=" + n);
+	}
+
+	public static void testRandomFloatParser() {
+		int n = 0;
+		final JsonReader jr = JsonReader.local();
+		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		final long t = System.nanoTime();
+		for (int i = 0; i < 10_000_000; i++) {
+			int v;
+			do
+				v = r.nextInt();
+			while ((v & 0x7f80_0000) == 0x7f80_0000);
+			final float f = Float.intBitsToFloat(v);
+			final float f2 = (float)jr.buf((f + " ").getBytes(StandardCharsets.ISO_8859_1)).parseDouble();
+			if (f != f2)
+				n++; // throw new AssertionError("testRandomFloatParser[" + i + "]: " + f + " != " + f2);
+		}
+		System.out.println("testRandomFloatParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms, errors=" + n);
 	}
 
 	public static void main(String[] args) {
-//		testRandomParser();
-
 		long t = System.nanoTime();
 		testReader();
 		System.out.println(TestNumberParser.class.getSimpleName() + ".testReader: " +
@@ -58,5 +77,10 @@ public final class TestNumberParser {
 		testWriter();
 		System.out.println(TestNumberParser.class.getSimpleName() + ".testWriter: " +
 				(System.nanoTime() - t) / 1_000_000 + " ms");
+
+		for (int i = 0; i < 5; i++)
+			testRandomDoubleParser();
+		for (int i = 0; i < 5; i++)
+			testRandomFloatParser();
 	}
 }

@@ -377,14 +377,16 @@ public final class Wast {
 	}
 
 	private static final long MOD_DOUBLE_MANTISSA = (1L << 52) - 1;
-	private static final double[] POSITIVE_DECIMAL_POWER = new double[325];
+	private static final double[] POSITIVE_DECIMAL_POWER = new double[39];
+	private static final double[] POSITIVE_DECIMAL_POWER_M = new double[64];
 	private static final long[] POW5_LONG_VALUES = new long[27];
 	private static final BigInteger[] POW5_BI_VALUES = new BigInteger[343];
 
 	static {
-		// e0 ~ e360(e306)
 		for (int i = 0; i < POSITIVE_DECIMAL_POWER.length; i++)
-			POSITIVE_DECIMAL_POWER[i] = Double.parseDouble("1.0E" + i);
+			POSITIVE_DECIMAL_POWER[i] = Math.pow(10, i);
+		for (int i = 0; i < POSITIVE_DECIMAL_POWER_M.length; i++)
+			POSITIVE_DECIMAL_POWER_M[i] = Math.pow(10, -i);
 
 		long val = 1;
 		for (int i = 0; i < POW5_LONG_VALUES.length; i++) {
@@ -398,12 +400,12 @@ public final class Wast {
 			POW5_BI_VALUES[i] = five.pow(i);
 	}
 
-	private static boolean checkLowCarry(long l, long x, long y32) {
-		long h1 = Math.multiplyHigh(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
-		return (l | carry) < 0 && ((l & carry) < 0 || l + carry >= 0);
+	private static boolean checkLowCarry(final long l, final long x, final long y32) {
+		final long h1 = Math.multiplyHigh(x, y32), l1 = x * y32, carry = (h1 << 32) + (l1 >>> 32);
+		return ((l | carry) & (l & carry | ~(l + carry))) < 0;
 	}
 
-	private static double longBitsToDecimalDouble(long l62, int e52, int sr) {
+	private static double longBitsToDecimalDouble(final long l62, final int e52, int sr) {
 		long e2, mantissa0;
 		if (e52 < -1074) {
 			sr += -1074 - e52;
@@ -422,7 +424,7 @@ public final class Wast {
 		return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 	}
 
-	private static double longBitsToIntegerDouble(long l62, long e2, int sr) {
+	private static double longBitsToIntegerDouble(final long l62, long e2, final int sr) {
 		if (e2 >= 2047)
 			return Double.POSITIVE_INFINITY;
 		long mantissa0 = ((l62 >>> (sr - 1)) + 1) >> 1;
@@ -433,122 +435,120 @@ public final class Wast {
 		return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 	}
 
-	private static double scientificToIEEEDouble(long val, int scale) {
+	private static double scientificToIEEEDouble(final long val, final int scale) {
 		if (val <= 0)
 			return 0;
-		int leadingZeros = Long.numberOfLeadingZeros(val);
 		//noinspection UnnecessaryLocalVariable
-		double dv = val;
-		if (scale <= 0) {
-			if (scale == 0)
-				return dv;
-			int e10 = -scale;
+		final double dv = val;
+		if (scale == 0)
+			return dv;
+		final long diff;
+		long mantissa0, e2;
+		if (scale > 0) {
+			if (scale > 342)
+				return 0;
+			if ((long)dv == val) {
+				if (scale < 23) {
+					if (val < 0x2_0000_0000L)
+						return dv * POSITIVE_DECIMAL_POWER_M[scale];
+					return dv / POSITIVE_DECIMAL_POWER[scale];
+				}
+			}
+			final ED5 ed5 = ED5.ED5_A[scale];
+			final int leadingZeros = Long.numberOfLeadingZeros(val);
+			final long left = val << (leadingZeros - 1);
+			final long h = Math.multiplyHigh(left, ed5.oy); // h is 61~62 bits
+			int sr = h >= 1L << 61 ? 9 : 8;
+			final int mask = (1 << (sr - 1)) - 1;
+			final int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
+			if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
+				return longBitsToDecimalDouble(h, e52, sr);
+			final long l = left * ed5.oy;
+			if (!checkLowCarry(l, left, ed5.of + 1)) // tail h like 01111111
+				return longBitsToDecimalDouble(h, e52, sr);
+			if (checkLowCarry(l, left, ed5.of)) // tail h like 10000000
+				return longBitsToDecimalDouble(h + 1, e52, sr);
+			if (scale < POW5_LONG_VALUES.length) {
+				// if reach here, there is a high probability that val can be evenly divided by p5sv
+				long p5sv = POW5_LONG_VALUES[scale];
+				mantissa0 = h >>> sr;
+				long bits = ((long)(e52 + 1075) << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA);
+				int sb = 1 - scale - e52;
+				// difference comparison method: diff = dv - dv0 >= 1/2 * 2^e52  -> val * 2^sb - mantissa0 * 2 * p5sv >= p5sv
+				diff = sb > 0
+						? (val << sb) - (mantissa0 << 1) * p5sv - p5sv
+						: val - (mantissa0 << (1 - sb)) * p5sv - (p5sv << -sb);
+				if (diff > 0 || diff == 0 && (mantissa0 & 1) == 1)
+					bits++;
+				return Double.longBitsToDouble(bits);
+			}
+			// This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
+			// If it occurs, use the difference method for carry detection
+			mantissa0 = h >>> sr;
+			if (e52 < -1074) {
+				sr += -1074 - e52;
+				e2 = 0;
+				if (sr >= 62)
+					return 0;
+			} else
+				e2 = e52 + 1075;
+			diff = BigInteger.valueOf(val).shiftLeft(1 - e52 - scale)
+					.compareTo(POW5_BI_VALUES[scale].multiply(BigInteger.valueOf((mantissa0 << 1) + 1)));
+		} else {
+			final int e10 = -scale;
 			if (e10 > 308)
 				return Double.POSITIVE_INFINITY;
 			if ((long)dv == val && e10 < 23)
 				return dv * POSITIVE_DECIMAL_POWER[e10];
-			BigInteger multiplier = POW5_BI_VALUES[e10];
-			ED5 ed5 = ED5.ED5_A[e10];
-			long left = val << (leadingZeros - 1);
-			long h = Math.multiplyHigh(left, ed5.y);
-			int sr = h >= 1L << 61 ? 9 : 8;
-			int mmask = (1 << sr) - 1;
+			final BigInteger multiplier = POW5_BI_VALUES[e10];
+			final ED5 ed5 = ED5.ED5_A[e10];
+			final int leadingZeros = Long.numberOfLeadingZeros(val);
+			final long left = val << (leadingZeros - 1);
+			final long h = Math.multiplyHigh(left, ed5.y);
+			final int sr = h >= 1L << 61 ? 9 : 8;
+			final int mmask = (1 << sr) - 1;
 			int mask = mmask >> 1;
 			if (e10 < POW5_LONG_VALUES.length) { // accurate mode
-				long mantissa0 = h >>> sr;
-				long e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
-				long mod = h & mmask;
-				if (mod > mask + 1 || (mod == mask + 1 && ((mantissa0 & 1) == 1 || left * ed5.y != 0))) {
-					mantissa0++;
-					if (mantissa0 == 1L << 53) {
+				mantissa0 = h >>> sr;
+				e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
+				final long mod = h & mmask;
+				mask++;
+				if (mod > mask || mod == mask && ((mantissa0 & 1) == 1 || left * ed5.y != 0)) {
+					if (++mantissa0 == 1L << 53) {
 						mantissa0 = 1L << 52;
 						e2++;
 					}
 				}
 				return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 			}
-			long e2 = e10 - leadingZeros + ed5.dfb + sr + 1140;
+			e2 = e10 - leadingZeros + ed5.dfb + sr + 1140;
 			if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
 				return longBitsToIntegerDouble(h, e2, sr);
-			long l = left * ed5.y;
+			final long l = left * ed5.y;
 			if (!checkLowCarry(l, left, ed5.f + 1)) // tail h like 01111111
 				return longBitsToIntegerDouble(h, e2, sr);
 			if (checkLowCarry(l, left, ed5.f)) // tail h like 10000000
 				return longBitsToIntegerDouble(h + 1, e2, sr);
 			// This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
 			// If it occurs, use the difference method for carry detection
-			int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
+			final int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
 			if (e52 >= 972)
 				return Double.POSITIVE_INFINITY;
-			long mantissa0 = h >>> sr;
-			long diff = BigInteger.valueOf(val).multiply(multiplier)
+			mantissa0 = h >>> sr;
+			e2 = e52 + 1075;
+			diff = BigInteger.valueOf(val).multiply(multiplier)
 					.compareTo(BigInteger.valueOf((mantissa0 << 1) + 1).shiftLeft(-1 + e52 - e10));
-			if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
-				mantissa0++;
-				if (mantissa0 == 1L << 53) {
-					mantissa0 >>= 1;
-					e52++;
-				}
-			}
-			e2 = e52 + 1075;
-			return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 		}
-		if (scale > 342)
-			return 0;
-		if ((long)dv == val && scale < 23)
-			return dv / POSITIVE_DECIMAL_POWER[scale];
-		ED5 ed5 = ED5.ED5_A[scale];
-		long left = val << (leadingZeros - 1);
-		long h = Math.multiplyHigh(left, ed5.oy); // h is 61~62 bits
-		int sr = h >= 1L << 61 ? 9 : 8;
-		int mask = (1 << (sr - 1)) - 1;
-		int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
-		if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
-			return longBitsToDecimalDouble(h, e52, sr);
-		long l = left * ed5.oy;
-		if (!checkLowCarry(l, left, ed5.of + 1)) // tail h like 01111111
-			return longBitsToDecimalDouble(h, e52, sr);
-		if (checkLowCarry(l, left, ed5.of)) // tail h like 10000000
-			return longBitsToDecimalDouble(h + 1, e52, sr);
-		if (scale < POW5_LONG_VALUES.length) {
-			// if reach here, there is a high probability that val can be evenly divided by p5sv
-			long p5sv = POW5_LONG_VALUES[scale];
-			long mantissa0 = h >>> sr;
-			long bits = ((long)(e52 + 1075) << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA);
-			int sb = 1 - scale - e52;
-			// difference comparison method: diff = dv - dv0 >= 1/2 * 2^e52  -> val * 2^sb - mantissa0 * 2 * p5sv >= p5sv
-			long diff = sb > 0
-					? (val << sb) - (mantissa0 << 1) * p5sv - p5sv
-					: val - (mantissa0 << (1 - sb)) * p5sv - (p5sv << -sb);
-			if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1))
-				return Double.longBitsToDouble(bits + 1);
-			return Double.longBitsToDouble(bits);
-		}
-		// This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
-		// If it occurs, use the difference method for carry detection
-		long e2, mantissa0 = h >>> sr;
-		if (e52 < -1074) {
-			sr += -1074 - e52;
-			e2 = 0;
-			if (sr >= 62)
-				return 0;
-		} else
-			e2 = e52 + 1075;
-		long diff = BigInteger.valueOf(val).shiftLeft(1 - e52 - scale)
-				.compareTo(POW5_BI_VALUES[scale].multiply(BigInteger.valueOf((mantissa0 << 1) + 1)));
-		if (diff > 0 || (diff == 0 && (mantissa0 & 1) == 1)) {
-			mantissa0++;
-			if (mantissa0 == 1L << 53) {
-				mantissa0 >>= 1;
-				e2++;
-			}
+		if ((diff > 0 || diff == 0 && (mantissa0 & 1) == 1) && ++mantissa0 == 1L << 53) {
+			mantissa0 >>= 1;
+			e2++;
 		}
 		return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
 	}
 
-	public static double parseDoubleWast(byte[] buf, int pos) {
+	public static double parseDoubleWast(final byte[] buf, int pos) {
 		int b = buf[pos++];
-		boolean neg;
+		final boolean neg;
 		if ((neg = (b == '-')) || b == '+')
 			b = buf[pos++];
 		long v = 0;
@@ -582,12 +582,66 @@ public final class Wast {
 		}
 		if (dotPos != 0)
 			s += pos - dotPos;
-		double d = scientificToIEEEDouble(v, s - ev);
-		return neg ? -d : d;
+		final double f = scientificToIEEEDouble(v, s - ev);
+		return neg ? -f : f;
 	}
 
-	public static void testRandomWastParser() {
+	private static float scientificToIEEEFloat(final long val, final int scale) {
+		if (scale > 0) {
+			if (scale > 63)
+				return 0;
+			return (float)(val * POSITIVE_DECIMAL_POWER_M[scale]);
+		}
+		if (scale == 0)
+			return val;
+		if (scale < -38)
+			return Float.POSITIVE_INFINITY;
+		return (float)(val * POSITIVE_DECIMAL_POWER[-scale]);
+	}
+
+	public static float parseFloatWast(final byte[] buf, int pos) {
+		int b = buf[pos++];
+		final boolean neg;
+		if ((neg = (b == '-')) || b == '+')
+			b = buf[pos++];
+		long v = 0;
+		int s = 0, ev = 0, dotPos = 0;
+		for (; ; b = buf[pos++]) {
+			if (((b - '0') & 0x7fff_ffff) < 10) {
+				if (v <= (Long.MAX_VALUE - 9) / 10)
+					v = v * 10 + b - '0';
+				else if (dotPos == 0)
+					s--;
+				else
+					break;
+			} else if (b == '.')
+				dotPos = pos + 1;
+			else if ((b | 0x20) == 'e') { // b == 'e' || b == 'E'
+				if (dotPos != 0) {
+					s += pos - dotPos;
+					dotPos = 0;
+				}
+				b = buf[pos++];
+				boolean expNeg;
+				if ((expNeg = (b == '-')) || b == '+')
+					b = buf[pos++];
+				for (; ((b - '0') & 0x7fff_ffff) < 10; b = buf[pos++])
+					ev = ev * 10 + b - '0';
+				if (expNeg)
+					ev = -ev;
+				break;
+			} else
+				break;
+		}
+		if (dotPos != 0)
+			s += pos - dotPos;
+		final float f = scientificToIEEEFloat(v, s - ev);
+		return neg ? -f : f;
+	}
+
+	public static void testRandomWastDoubleParser() {
 		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			long v;
 			do
@@ -595,10 +649,26 @@ public final class Wast {
 			while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
 			final double f = Double.longBitsToDouble(v);
 			final double f2 = parseDoubleWast((f + " ").getBytes(StandardCharsets.ISO_8859_1), 0);
-			if (f != f2 && !(Double.isNaN(f) && Double.isNaN(f2)))
-				throw new AssertionError("testRandomWastParser[" + i + "]: " + f + " != " + f2);
+			if (f != f2)
+				throw new AssertionError("testRandomWastDoubleParser[" + i + "]: " + f + " != " + f2);
 		}
-		System.out.println("testRandomWastParser OK!");
+		System.out.println("testRandomWastDoubleParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms");
+	}
+
+	public static void testRandomWastFloatParser() {
+		final ThreadLocalRandom r = ThreadLocalRandom.current();
+		final long t = System.nanoTime();
+		for (int i = 0; i < 10_000_000; i++) {
+			int v;
+			do
+				v = r.nextInt();
+			while ((v & 0x7f80_0000) == 0x7f80_0000);
+			final float f = Float.intBitsToFloat(v);
+			final float f2 = parseFloatWast((f + " ").getBytes(StandardCharsets.ISO_8859_1), 0);
+			if (f != f2)
+				throw new AssertionError("testRandomWastFloatParser[" + i + "]: " + f + " != " + f2);
+		}
+		System.out.println("testRandomWastFloatParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms");
 	}
 
 	private static final byte[][] testBytes = {"3.1234567 ".getBytes(), "31234567 ".getBytes(),
@@ -618,7 +688,10 @@ public final class Wast {
 	public static void main(String[] args) {
 //		System.out.println(parseDoubleWast("9.49113649602955E-309 ".getBytes(), 0));
 
-		testRandomWastParser();
+		for (int i = 0; i < 5; i++)
+			testRandomWastDoubleParser();
+		for (int i = 0; i < 5; i++)
+			testRandomWastFloatParser();
 		for (int i = 0; i < 5; i++)
 			benchmarkWastParser();
 	}
