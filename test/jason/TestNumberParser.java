@@ -33,42 +33,83 @@ public final class TestNumberParser {
 	}
 
 	public static void testRandomDoubleParser() {
-		int n = 0;
+		int e1 = 0, e2 = 0;
 		final JsonReader jr = JsonReader.local();
 		final ThreadLocalRandom r = ThreadLocalRandom.current();
 		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			long v;
-			do
-				v = r.nextLong();
-			while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
+			if (i < 400) {
+				if (i < 100)
+					v = i;
+				else if (i < 200)
+					v = 0x10_0000_0000_0000L - (i - 99);
+				else if (i < 300)
+					v = 0x7fe0_0000_0000_0000L + (i - 200);
+				else
+					v = 0x7ff0_0000_0000_0000L - (i - 299);
+			} else {
+				do
+					v = r.nextLong();
+				while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
+			}
 			final double f = Double.longBitsToDouble(v);
 			final double f2 = jr.buf((f + " ").getBytes(StandardCharsets.ISO_8859_1)).parseDouble();
-			if (f != f2)
-				n++; // throw new AssertionError("testRandomDoubleParser[" + i + "]: " + f + " != " + f2);
+			if (f != f2) {
+				double f3, f4, f5, f6;
+				if (f == (f3 = Math.nextDown(f2)) || f == (f5 = Math.nextUp(f2)))
+					e1++;
+				else if (f == (f4 = Math.nextDown(f3)) || f == (f6 = Math.nextUp(f5)))
+					e2++;
+				else {
+					throw new AssertionError("testRandomDoubleParser[" + i + "]:"
+							+ "\n    " + f
+							+ "\n != " + f2
+							+ "\n-2: " + f4
+							+ "\n-1: " + f3
+							+ "\n+1: " + f5
+							+ "\n+2: " + f6);
+				}
+			}
 		}
-		System.out.println("testRandomDoubleParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms, errors=" + n);
+		System.out.println("testRandomDoubleParser OK! " + (System.nanoTime() - t) / 1_000_000
+				+ " ms, errors=" + e1 + "+" + e2);
 	}
 
 	public static void testRandomFloatParser() {
-		int n = 0;
 		final JsonReader jr = JsonReader.local();
 		final ThreadLocalRandom r = ThreadLocalRandom.current();
 		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			int v;
-			do
-				v = r.nextInt();
-			while ((v & 0x7f80_0000) == 0x7f80_0000);
+			if (i < 400) {
+				if (i < 100)
+					v = i;
+				else if (i < 200)
+					v = 0x80_0000 - (i - 99);
+				else if (i < 300)
+					v = 0x7f00_0000 + (i - 200);
+				else
+					v = 0x7f80_0000 - (i - 299);
+			} else {
+				do
+					v = r.nextInt();
+				while ((v & 0x7f80_0000) == 0x7f80_0000);
+			}
 			final float f = Float.intBitsToFloat(v);
 			final float f2 = (float)jr.buf((f + " ").getBytes(StandardCharsets.ISO_8859_1)).parseDouble();
 			if (f != f2)
-				n++; // throw new AssertionError("testRandomFloatParser[" + i + "]: " + f + " != " + f2);
+				throw new AssertionError("testRandomFloatParser[" + i + "]: " + f + " != " + f2);
 		}
-		System.out.println("testRandomFloatParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms, errors=" + n);
+		System.out.println("testRandomFloatParser OK! " + (System.nanoTime() - t) / 1_000_000 + " ms");
 	}
 
 	public static void main(String[] args) {
+		for (int i = 0; i < 5; i++)
+			testRandomDoubleParser();
+		for (int i = 0; i < 5; i++)
+			testRandomFloatParser();
+
 		long t = System.nanoTime();
 		testReader();
 		System.out.println(TestNumberParser.class.getSimpleName() + ".testReader: " +
@@ -77,10 +118,5 @@ public final class TestNumberParser {
 		testWriter();
 		System.out.println(TestNumberParser.class.getSimpleName() + ".testWriter: " +
 				(System.nanoTime() - t) / 1_000_000 + " ms");
-
-		for (int i = 0; i < 5; i++)
-			testRandomDoubleParser();
-		for (int i = 0; i < 5; i++)
-			testRandomFloatParser();
 	}
 }

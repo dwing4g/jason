@@ -2768,36 +2768,6 @@ public class DragonBox {
 		System.out.println(a);
 	}
 
-	public static void testParserBug() {
-		for (long i = 9639801287119911L; i <= 9639801287119919L; i++)
-			System.out.println(i + " => " + (double)i);
-		System.out.println(0.9639801287119912);
-		System.out.println(0.9639801287119913);
-		System.out.println(0.9639801287119914);
-
-		System.out.println(Double.longBitsToDouble(4606857980642196189L)); // 0.9639801287119912
-		System.out.println(Double.longBitsToDouble(4606857980642196190L)); // 0.9639801287119913
-		System.out.println(Double.longBitsToDouble(4606857980642196191L)); // 0.9639801287119915
-
-		double d = 0.9639801287119913;
-		System.out.println(d);
-		//System.out.println((long)d);
-		System.out.format("%.20f\n", d);
-
-		JsonWriter jw = JsonWriter.local();
-		jw.write(d);
-		System.out.println(jw);
-
-		byte[] buf = new byte[MAX_DOUBLE_BYTES];
-		int pos = writeDouble(0.9639801287119913, buf, 0);
-		System.out.println(new String(buf, 0, pos, StandardCharsets.ISO_8859_1));
-
-		System.out.println(Double.doubleToRawLongBits(0.9639801287119913));
-		System.out.println(Double.doubleToRawLongBits(JsonReader.local().buf("9.639801287119913e-1 ").parseDouble()));
-
-		System.out.println(JsonReader.local().buf("0.9639801287119913 ").parseDouble());
-	}
-
 	public static void main(String[] args) {
 //		byte[] buf = new byte[MAX_FLOAT_BYTES];
 //		float f = 1.4742742E-21f;

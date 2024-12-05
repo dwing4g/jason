@@ -445,11 +445,8 @@ public final class Wast {
 		final long diff;
 		long mantissa0, e2;
 		if (scale > 0) {
-			if ((long)dv == val && scale < 23) {
-				if (val <= Integer.MAX_VALUE)
-					return dv * NEGTIVE_DECIMAL_POWER[scale];
+			if ((long)dv == val && scale < 23)
 				return dv / POSITIVE_DECIMAL_POWER[scale];
-			}
 			if (scale > 342)
 				return 0;
 			final ED5 ed5 = ED5.ED5_A[scale];
@@ -637,9 +634,20 @@ public final class Wast {
 		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			long v;
-			do
-				v = r.nextLong();
-			while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
+			if (i < 400) {
+				if (i < 100)
+					v = i;
+				else if (i < 200)
+					v = 0x10_0000_0000_0000L - (i - 99);
+				else if (i < 300)
+					v = 0x7fe0_0000_0000_0000L + (i - 200);
+				else
+					v = 0x7ff0_0000_0000_0000L - (i - 299);
+			} else {
+				do
+					v = r.nextLong();
+				while ((v & 0x7ff0_0000_0000_0000L) == 0x7ff0_0000_0000_0000L);
+			}
 			final double f = Double.longBitsToDouble(v);
 			final double f2 = parseDoubleWast((f + " ").getBytes(StandardCharsets.ISO_8859_1), 0);
 			if (f != f2)
@@ -653,9 +661,20 @@ public final class Wast {
 		final long t = System.nanoTime();
 		for (int i = 0; i < 10_000_000; i++) {
 			int v;
-			do
-				v = r.nextInt();
-			while ((v & 0x7f80_0000) == 0x7f80_0000);
+			if (i < 400) {
+				if (i < 100)
+					v = i;
+				else if (i < 200)
+					v = 0x80_0000 - (i - 99);
+				else if (i < 300)
+					v = 0x7f00_0000 + (i - 200);
+				else
+					v = 0x7f80_0000 - (i - 299);
+			} else {
+				do
+					v = r.nextInt();
+				while ((v & 0x7f80_0000) == 0x7f80_0000);
+			}
 			final float f = Float.intBitsToFloat(v);
 			final float f2 = parseFloatWast((f + " ").getBytes(StandardCharsets.ISO_8859_1), 0);
 			if (f != f2)
