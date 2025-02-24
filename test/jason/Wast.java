@@ -11,33 +11,33 @@ public final class Wast {
 
 		static {
 			final long[][] ed5datas = {
-					{0x4000000000000000L, 0, 0, 0x8000000000000000L, 31, 0},
-					{0x5000000000000000L, 0, 0, 0x6666666666666666L, 33, 1717986918},
-					{0x6400000000000000L, 0, 0, 0x51eb851eb851eb85L, 35, 515396075},
-					{0x7d00000000000000L, 0, 0, 0x4189374bc6a7ef9dL, 37, -1305670058},
-					{0x4e20000000000000L, 0, 0, 0x68db8bac710cb295L, 40, -371085175},
-					{0x61a8000000000000L, 0, 0, 0x53e2d6238da3c211L, 42, -2014855058},
-					{0x7a12000000000000L, 0, 0, 0x431bde82d7b634daL, 44, -752890588},
-					{0x4c4b400000000000L, 0, 0, 0x6b5fca6af2bd215eL, 47, 513361979},
-					{0x5f5e100000000000L, 0, 0, 0x55e63b88c230e77eL, 49, 2128676501},
-					{0x7735940000000000L, 0, 0, 0x44b82fa09b5a52cbL, 51, -1733032636},
-					{0x4a817c8000000000L, 0, 0, 0x6df37f675ef6eadfL, 54, 1522115079},
-					{0x5d21dba000000000L, 0, 0, 0x57f5ff85e592557fL, 56, 2076685522},
-					{0x746a528800000000L, 0, 0, 0x465e6604b7a84465L, 58, -56638501},
-					{0x48c2739500000000L, 0, 0, 0x709709a125da0709L, 61, -1808608519},
-					{0x5af3107a40000000L, 0, 0, 0x5a126e1a84ae6c07L, 63, -1446886816},
-					{0x71afd498d0000000L, 0, 0, 0x480ebe7b9d58566cL, 65, -2016502912},
-					{0x470de4df82000000L, 0, 0, 0x734aca5f6226f0adL, 68, -1508417740},
-					{0x58d15e1762800000L, 0, 0, 0x5c3bd5191b525a24L, 70, -2065727652},
-					{0x6f05b59d3b200000L, 0, 0, 0x49c97747490eae83L, 72, -1652582121},
-					{0x4563918244f40000L, 0, 0, 0x760f253edb4ab0d2L, 75, -1785137935},
-					{0x56bc75e2d6310000L, 0, 0, 0x5e72843249088d75L, 77, 1148870030},
-					{0x6c6b935b8bbd4000L, 0, 0, 0x4b8ed0283a6d3df7L, 79, 1778089483},
-					{0x43c33c1937564800L, 0, 0, 0x78e480405d7b9658L, 82, -1450024123},
-					{0x54b40b1f852bda00L, 0, 0, 0x60b6cd004ac94513L, 84, -1160019298},
-					{0x69e10de76676d080L, 0, 0, 0x4d5f0a66a23a9da9L, 86, 1648964939},
-					{0x422ca8b0a00a4250L, 0, 0, 0x7bcb43d769f762a8L, 89, -1656623394},
-					{0x52b7d2dcc80cd2e4L, 0, 0, 0x63090312bb2c4eedL, 91, 1251681663},
+					{0x4000000000000000L, 0, -62, 0x8000000000000000L, 31, 0},
+					{0x5000000000000000L, 0, -60, 0x6666666666666666L, 33, 1717986918},
+					{0x6400000000000000L, 0, -58, 0x51eb851eb851eb85L, 35, 515396075},
+					{0x7d00000000000000L, 0, -56, 0x4189374bc6a7ef9dL, 37, -1305670058},
+					{0x4e20000000000000L, 0, -53, 0x68db8bac710cb295L, 40, -371085175},
+					{0x61a8000000000000L, 0, -51, 0x53e2d6238da3c211L, 42, -2014855058},
+					{0x7a12000000000000L, 0, -49, 0x431bde82d7b634daL, 44, -752890588},
+					{0x4c4b400000000000L, 0, -46, 0x6b5fca6af2bd215eL, 47, 513361979},
+					{0x5f5e100000000000L, 0, -44, 0x55e63b88c230e77eL, 49, 2128676501},
+					{0x7735940000000000L, 0, -42, 0x44b82fa09b5a52cbL, 51, -1733032636},
+					{0x4a817c8000000000L, 0, -39, 0x6df37f675ef6eadfL, 54, 1522115079},
+					{0x5d21dba000000000L, 0, -37, 0x57f5ff85e592557fL, 56, 2076685522},
+					{0x746a528800000000L, 0, -35, 0x465e6604b7a84465L, 58, -56638501},
+					{0x48c2739500000000L, 0, -32, 0x709709a125da0709L, 61, -1808608519},
+					{0x5af3107a40000000L, 0, -30, 0x5a126e1a84ae6c07L, 63, -1446886816},
+					{0x71afd498d0000000L, 0, -28, 0x480ebe7b9d58566cL, 65, -2016502912},
+					{0x470de4df82000000L, 0, -25, 0x734aca5f6226f0adL, 68, -1508417740},
+					{0x58d15e1762800000L, 0, -23, 0x5c3bd5191b525a24L, 70, -2065727652},
+					{0x6f05b59d3b200000L, 0, -21, 0x49c97747490eae83L, 72, -1652582121},
+					{0x4563918244f40000L, 0, -18, 0x760f253edb4ab0d2L, 75, -1785137935},
+					{0x56bc75e2d6310000L, 0, -16, 0x5e72843249088d75L, 77, 1148870030},
+					{0x6c6b935b8bbd4000L, 0, -14, 0x4b8ed0283a6d3df7L, 79, 1778089483},
+					{0x43c33c1937564800L, 0, -11, 0x78e480405d7b9658L, 82, -1450024123},
+					{0x54b40b1f852bda00L, 0, -9, 0x60b6cd004ac94513L, 84, -1160019298},
+					{0x69e10de76676d080L, 0, -7, 0x4d5f0a66a23a9da9L, 86, 1648964939},
+					{0x422ca8b0a00a4250L, 0, -4, 0x7bcb43d769f762a8L, 89, -1656623394},
+					{0x52b7d2dcc80cd2e4L, 0, -2, 0x63090312bb2c4eedL, 91, 1251681663},
 					{0x6765c793fa10079dL, 0, 0, 0x4f3a68dbc8f03f24L, 93, 1001345330},
 					{0x409f9cbc7c4a04c2L, 0x20000000L, 3, 0x7ec3daf941806506L, 96, -974827849},
 					{0x50c783eb9b5c85f2L, -1476395008, 5, 0x65697bfa9acd1d9fL, 98, 79131180},
@@ -401,7 +401,7 @@ public final class Wast {
 	}
 
 	private static boolean checkLowCarry(final long l, final long x, final long y32) {
-		return l < 0 && l + ((Math.multiplyHigh(x, y32) << 32) + ((x * y32) >>> 32)) >= 0;
+		return l + ((Math.multiplyHigh(x, y32) << 32) + ((x * y32) >>> 32)) >= 0;
 	}
 
 	private static double longBitsToDecimalDouble(final long l62, final int e52, int sr) {
@@ -437,31 +437,28 @@ public final class Wast {
 	private static double scientificToIEEEDouble(final long val, final int scale) {
 		if (val <= 0)
 			return 0;
-		//noinspection UnnecessaryLocalVariable
-		final double dv = val;
 		if (scale == 0)
-			return dv;
+			return val;
 		final long diff;
 		long mantissa0, e2;
 		if (scale > 0) {
-			if ((long)dv == val && scale < 23)
-				return dv / POSITIVE_DECIMAL_POWER[scale];
 			if (scale > 342)
 				return 0;
 			final ED5 ed5 = ED5.ED5_A[scale];
 			final int leadingZeros = Long.numberOfLeadingZeros(val);
 			final long left = val << (leadingZeros - 1);
-			final long h = Math.multiplyHigh(left, ed5.oy); // h is 61~62 bits
+			final long h = Math.multiplyHigh(left, ed5.oy), l; // h is 61~62 bits
 			int sr = h >= 1L << 61 ? 9 : 8;
 			final int mask = (1 << (sr - 1)) - 1;
 			final int e52 = 33 - scale - ed5.ob - leadingZeros + sr;
-			if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
+			if ((h & mask) != mask || (e52 > -1075 && ((h >> sr - 1) & 1) == 1) || (l = left * ed5.oy) > 0 || !checkLowCarry(l, left, ed5.of + 1))
 				return longBitsToDecimalDouble(h, e52, sr);
-			final long l = left * ed5.oy;
+			// ensure l < 0
 			if (checkLowCarry(l, left, ed5.of)) // tail h like 10000000
 				return longBitsToDecimalDouble(h + 1, e52, sr);
-			if (!checkLowCarry(l, left, ed5.of + 1)) // tail h like 01111111
-				return longBitsToDecimalDouble(h, e52, sr);
+			// The code here is basically unreachable, as the double range is too large to fully cover the test.
+			// If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
+			// If it is reached, use the difference method to determine (the result is guaranteed to be correct)
 			if (scale < POW5_LONG_VALUES.length) {
 				// if reach here, there is a high probability that val can be evenly divided by p5sv
 				long p5sv = POW5_LONG_VALUES[scale];
@@ -476,8 +473,6 @@ public final class Wast {
 					bits++;
 				return Double.longBitsToDouble(bits);
 			}
-			// This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
-			// If it occurs, use the difference method for carry detection
 			mantissa0 = h >>> sr;
 			if (e52 < -1074) {
 				sr += -1074 - e52;
@@ -490,47 +485,32 @@ public final class Wast {
 					.compareTo(POW5_BI_VALUES[scale].multiply(BigInteger.valueOf((mantissa0 << 1) + 1)));
 		} else {
 			final int e10 = -scale;
-			if ((long)dv == val && e10 < 23)
-				return dv * POSITIVE_DECIMAL_POWER[e10];
+			if (e10 < 23 && val < 9007199254740993L) // 1L << 53
+				return val * POSITIVE_DECIMAL_POWER[e10];
 			if (e10 > 308)
 				return Double.POSITIVE_INFINITY;
-			final BigInteger multiplier = POW5_BI_VALUES[e10];
 			final ED5 ed5 = ED5.ED5_A[e10];
 			final int leadingZeros = Long.numberOfLeadingZeros(val);
 			final long left = val << (leadingZeros - 1);
-			final long h = Math.multiplyHigh(left, ed5.y);
+			final long h = Math.multiplyHigh(left, ed5.y), l; // h is 61~62 bits
 			final int sr = h >= 1L << 61 ? 9 : 8;
 			final int mmask = (1 << sr) - 1;
 			int mask = mmask >> 1;
-			if (e10 < POW5_LONG_VALUES.length) { // accurate mode
-				mantissa0 = h >>> sr;
-				e2 = e10 - leadingZeros + multiplier.bitLength() + sr + 1077;
-				final long mod = h & mmask;
-				mask++;
-				if (mod > mask || mod == mask && ((mantissa0 & 1) == 1 || left * ed5.y != 0)) {
-					if (++mantissa0 == 1L << 53) {
-						mantissa0 = 1L << 52;
-						e2++;
-					}
-				}
-				return Double.longBitsToDouble((e2 << 52) + (mantissa0 & MOD_DOUBLE_MANTISSA));
-			}
-			e2 = e10 - leadingZeros + ed5.dfb + sr + 1140;
-			if ((h & mask) != mask/* || ((h >> (sr - 1)) & 1) == 1*/)
-				return longBitsToIntegerDouble(h, e2, sr);
-			final long l = left * ed5.y;
+			long e = e10 + ed5.dfb + 1140 - leadingZeros + sr;
+			if ((h & mmask) != mask || (l = left * ed5.y) > 0 || !checkLowCarry(l, left, ed5.f + 1))
+				return longBitsToIntegerDouble(h, e, sr);
+			// l < 0
 			if (checkLowCarry(l, left, ed5.f)) // tail h like 10000000
-				return longBitsToIntegerDouble(h + 1, e2, sr);
-			if (!checkLowCarry(l, left, ed5.f + 1)) // tail h like 01111111
-				return longBitsToIntegerDouble(h, e2, sr);
-			// This is a scenario that is extremely rare or unlikely to occur, although the low bit is only 32 bits.
-			// If it occurs, use the difference method for carry detection
+				return longBitsToIntegerDouble(h + 1, e, sr);
+			// The code here is basically unreachable, as the double range is too large to fully cover the test.
+			// If it can be confirmed that the last method call checkLowCarry can also be optimized, it will greatly improve overall performance
+			// If it is reached, use the difference method to determine (the result is guaranteed to be correct)
 			final int e52 = e10 - leadingZeros + ed5.dfb + sr + 65;
 			if (e52 >= 972)
 				return Double.POSITIVE_INFINITY;
 			mantissa0 = h >>> sr;
 			e2 = e52 + 1075;
-			diff = BigInteger.valueOf(val).multiply(multiplier)
+			diff = BigInteger.valueOf(val).multiply(POW5_BI_VALUES[e10])
 					.compareTo(BigInteger.valueOf((mantissa0 << 1) + 1).shiftLeft(-1 + e52 - e10));
 		}
 		if ((diff > 0 || diff == 0 && (mantissa0 & 1) == 1) && ++mantissa0 == 1L << 53) {
