@@ -38,6 +38,7 @@
 			<compilerarg value="-XDignore.symbol.file"/>
 			<src path="${src}"/>
 			<src path="${test}"/>
+			<exclude name="**/TestJdk16.java"/>
 		</javac>
 	</target>
 

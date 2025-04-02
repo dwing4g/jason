@@ -19,17 +19,17 @@ public final class Test {
 		Map<A, Integer> m = new HashMap<>();
 	}
 
-	private static void assertNotNull(Object a) {
+	public static void assertNotNull(Object a) {
 		if (a == null)
 			throw new AssertionError("null");
 	}
 
-	private static void assertEquals(int a, int b) {
+	public static void assertEquals(int a, int b) {
 		if (a != b)
 			throw new AssertionError(a + " != " + b);
 	}
 
-	private static void assertEquals(Object a, Object b) {
+	public static void assertEquals(Object a, Object b) {
 		if (!Objects.equals(a, b))
 			throw new AssertionError(a + " != " + b);
 	}
