@@ -578,7 +578,7 @@ public final class JsonReader {
 						}
 					} else
 						c.clear();
-					parseList0(classMeta.json, c, classMeta, fm);
+					parseList0(c, classMeta, fm);
 				} else if (flag == TYPE_MAP_FLAG) {
 					if (b != '{') {
 						unsafe.putObject(obj, offset, null);
@@ -609,7 +609,7 @@ public final class JsonReader {
 						}
 					} else
 						m.clear();
-					parseMap0(classMeta.json, m, classMeta, fm);
+					parseMap0(m, classMeta, fm);
 				}
 			}
 		}
@@ -617,8 +617,8 @@ public final class JsonReader {
 		return obj;
 	}
 
-	public void parseList0(@NonNull Json json, @NonNull Collection<Object> c, @NonNull ClassMeta<?> classMeta,
-						   @NonNull FieldMeta fm) throws ReflectiveOperationException {
+	public void parseList0(@NonNull Collection<Object> c, @NonNull ClassMeta<?> classMeta, @NonNull FieldMeta fm)
+			throws ReflectiveOperationException {
 		int b = skipNext();
 		switch (fm.type & 0xf) {
 		case TYPE_BOOLEAN:
@@ -686,8 +686,8 @@ public final class JsonReader {
 		pos++;
 	}
 
-	public void parseMap0(@NonNull Json json, @NonNull Map<Object, Object> m, @NonNull ClassMeta<?> classMeta,
-						  @NonNull FieldMeta fm) throws ReflectiveOperationException {
+	public void parseMap0(@NonNull Map<Object, Object> m, @NonNull ClassMeta<?> classMeta, @NonNull FieldMeta fm)
+			throws ReflectiveOperationException {
 		int b = skipNext();
 		KeyReader keyParser = ensureNonNull(fm.keyParser);
 		switch (fm.type & 0xf) {
