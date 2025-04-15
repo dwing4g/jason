@@ -17,8 +17,6 @@ public final class TestStringParser {
 		JsonReader jr = new JsonReader();
 		for (int j = 0; j < 8; j++) {
 			String s = jr.buf(tests[j]).parseString();
-			if (s == null)
-				throw new RuntimeException();
 			if (!s.equals(chks[j])) {
 				System.err.println("ERROR! j=" + j + ':');
 				for (int i = 0; i < s.length(); i++)
@@ -34,8 +32,6 @@ public final class TestStringParser {
 		for (int i = 0; i < 2_000_000; i++)
 			for (int j = 0; j < 8; j++) {
 				String s = jr.buf(tests[j]).parseString();
-				if (s == null)
-					throw new RuntimeException();
 				r += s.length();
 			}
 		System.out.println(TestStringParser.class.getSimpleName() + ": " + r); // 102000000

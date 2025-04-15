@@ -819,8 +819,7 @@ public final class JsonReader {
 	}
 
 	public static @NonNull String parseStringKey(@NonNull JsonReader jr, int b) {
-		String key = b == '"' || b == '\'' ? jr.parseString(true) : jr.parseStringNoQuot();
-		return key != null ? key : "";
+		return b == '"' || b == '\'' ? jr.parseString(true) : jr.parseStringNoQuot();
 	}
 
 	public static @NonNull Boolean parseBooleanKey(@NonNull JsonReader jr, int b) {
@@ -986,15 +985,23 @@ public final class JsonReader {
 		}
 	}
 
-	public @Nullable String parseString() {
+	public @NonNull String parseString() {
 		return parseString(false);
 	}
 
-	public @Nullable String parseString(boolean intern) {
+	public @NonNull String parseString(boolean intern) {
 		final byte[] buffer = buf;
 		int p = pos, b, e = buffer[p];
-		if (e != '"' && e != '\'')
-			return null;
+		if (e != '"' && e != '\'') {
+			for (final int begin = p; ; p++) {
+				if ((b = buffer[p]) == ',' || b == '\n' || (b | 0x20) == '}') { // ]:0x5D | 0x20 = }:0x7D
+					pos = p;
+					if (begin < p && buffer[p - 1] == '\r')
+						p--;
+					return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
+				}
+			}
+		}
 		final int begin = ++p;
 		for (; ; p++) {
 			if ((b = buffer[p]) == e) {

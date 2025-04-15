@@ -320,6 +320,22 @@ public final class Test {
 		assertEquals(-1, a.get(4));
 	}
 
+	static class H {
+		String s;
+		int v;
+	}
+
+	public static void testG() throws ReflectiveOperationException {
+		H a = JsonReader.local().buf("{s:true,v:123}").parse(H.class);
+		assertNotNull(a);
+		assertEquals("true", a.s);
+		assertEquals(123, a.v);
+		a = JsonReader.local().buf("{s:null\nv:456}").parse(H.class);
+		assertNotNull(a);
+		assertEquals("null", a.s);
+		assertEquals(456, a.v);
+	}
+
 	public static void main(String[] args) throws ReflectiveOperationException {
 		test1();
 		test2();
@@ -336,6 +352,7 @@ public final class Test {
 		testD();
 		testE();
 		testF();
-		System.out.println(Test.class.getSimpleName() + ": 15 tests OK!");
+		testG();
+		System.out.println(Test.class.getSimpleName() + ": 16 tests OK!");
 	}
 }
