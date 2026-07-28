@@ -341,7 +341,7 @@ public final class JsonReader {
 	}
 
 	public <T> @Nullable Collection<T> parseArray(@NonNull Json json, @Nullable Collection<T> c,
-												  @NonNull Class<T> elemClass) throws ReflectiveOperationException {
+	                                              @NonNull Class<T> elemClass) throws ReflectiveOperationException {
 		if (next() != '[')
 			return c;
 		if (c == null)

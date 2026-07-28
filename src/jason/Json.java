@@ -52,7 +52,7 @@ public final class Json implements Cloneable {
 		public final @Nullable Type[] paramTypes;
 
 		public FieldMeta(int type, int offset, @NonNull String name, @NonNull Class<?> klass, @Nullable Creator<?> ctor,
-						 @Nullable KeyReader keyReader, @NonNull Field field) {
+		                 @Nullable KeyReader keyReader, @NonNull Field field) {
 			this.name = name.getBytes(StandardCharsets.UTF_8);
 			this.hash = getKeyHash(this.name, 0, this.name.length);
 			this.type = type;
@@ -75,12 +75,12 @@ public final class Json implements Cloneable {
 	public interface Parser<T> {
 		@Nullable
 		T parse(@NonNull JsonReader reader, @NonNull ClassMeta<T> classMeta, @Nullable FieldMeta fieldMeta,
-				@Nullable T obj, @Nullable Object parent) throws ReflectiveOperationException;
+		        @Nullable T obj, @Nullable Object parent) throws ReflectiveOperationException;
 
 		@SuppressWarnings("unchecked")
 		default @Nullable T parse0(@NonNull JsonReader reader, @NonNull ClassMeta<?> classMeta,
-								   @Nullable FieldMeta fieldMeta, @Nullable Object obj,
-								   @Nullable Object parent) throws ReflectiveOperationException {
+		                           @Nullable FieldMeta fieldMeta, @Nullable Object obj,
+		                           @Nullable Object parent) throws ReflectiveOperationException {
 			return parse(reader, (ClassMeta<T>)classMeta, fieldMeta, (T)obj, parent);
 		}
 	}
@@ -269,6 +269,10 @@ public final class Json implements Cloneable {
 					final String fieldName = field.getName();
 					if (fieldName.startsWith("this$")) // closure field
 						continue;
+					final BiFunction<Class<?>, Field, String> fieldNameFilter = json.fieldNameFilter;
+					final String fn = fieldNameFilter != null ? fieldNameFilter.apply(c, field) : fieldName;
+					if (fn == null)
+						continue;
 					Class<?> fieldClass = ensureNonNull(field.getType());
 					Creator<?> fieldCtor = null;
 					KeyReader keyReader = null;
@@ -332,10 +336,7 @@ public final class Json implements Cloneable {
 						throw new IllegalStateException("unexpected offset(" + offset + ") from field: "
 								+ fieldName + " in " + klass.getName());
 					}
-					final BiFunction<Class<?>, Field, String> fieldNameFilter = json.fieldNameFilter;
-					final String fn = fieldNameFilter != null ? fieldNameFilter.apply(c, field) : fieldName;
-					put(j++, new FieldMeta(type, (int)offset, fn != null ? fn : fieldName, fieldClass, fieldCtor,
-							keyReader, field));
+					put(j++, new FieldMeta(type, (int)offset, fn, fieldClass, fieldCtor, keyReader, field));
 				}
 			}
 		}
