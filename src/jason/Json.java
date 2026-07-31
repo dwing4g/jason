@@ -316,14 +316,17 @@ public final class Json implements Cloneable {
 							if (keyReader == null) {
 								Class<?> keyClass = (Class<?>)subTypes[0];
 								if (isAbstract(keyClass)) {
-									throw new IllegalStateException("unsupported abstract key class for field: "
-											+ fieldName + " in " + klass.getName());
+									keyReader = (jr, b) -> {
+										throw new IllegalStateException("unsupported abstract key class(" + keyClass
+												+ ") for field: " + fieldName + " in " + klass.getName());
+									};
+								} else {
+									Creator<?> keyCtor = getDefCtor(keyClass);
+									keyReader = (jr, b) -> {
+										String keyStr = JsonReader.parseStringKey(jr, b);
+										return ensureNonNull(new JsonReader().buf(keyStr).parse(json, keyCtor.create()));
+									};
 								}
-								Creator<?> keyCtor = getDefCtor(keyClass);
-								keyReader = (jr, b) -> {
-									String keyStr = JsonReader.parseStringKey(jr, b);
-									return ensureNonNull(new JsonReader().buf(keyStr).parse(json, keyCtor.create()));
-								};
 							}
 						} else {
 							type = TYPE_MAP_FLAG + TYPE_OBJECT;
