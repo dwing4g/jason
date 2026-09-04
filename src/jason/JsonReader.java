@@ -314,7 +314,8 @@ public final class JsonReader {
 		case '"': case '\'': return parseString(b, false);
 		case '0': case '1': case '2': case '3': case '4': case '5': case '6':
 		case '7': case '8': case '9': case '-': case '+': case '.':
-		case 'I': case 'i': case 'N': case 'n': return parseNumber();
+		case 'I': case 'i': case 'N': return parseNumber();
+		case 'n': return buf[pos] == 'u' ? null : parseNumber();
 		case 'f': case 'F': return false;
 		case 't': case 'T': return true;
 		} //@formatter:on
@@ -341,7 +342,7 @@ public final class JsonReader {
 	}
 
 	public <T> @Nullable Collection<T> parseArray(@NonNull Json json, @Nullable Collection<T> c,
-	                                              @NonNull Class<T> elemClass) throws ReflectiveOperationException {
+												  @NonNull Class<T> elemClass) throws ReflectiveOperationException {
 		if (next() != '[')
 			return c;
 		if (c == null)
@@ -1194,11 +1195,14 @@ public final class JsonReader {
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
 					while ((b = (buffer[++p] - '0') & 0xff) < 10) {
 						if ((exp = exp * 10 + b) > maxExp) {
-							if (!expMinus)
-								return minus ? Integer.MIN_VALUE : Integer.MAX_VALUE;
 							do
 								b = buffer[++p];
 							while (((b - '0') & 0xff) < 10);
+							if (!expMinus) {
+								pos = p;
+								return minus ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+							}
+							break;
 						}
 					}
 				}
@@ -1293,11 +1297,14 @@ public final class JsonReader {
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
 					while ((b = (buffer[++p] - '0') & 0xff) < 10) {
 						if ((exp = exp * 10 + b) > maxExp) {
-							if (!expMinus)
-								return minus ? Long.MIN_VALUE : Long.MAX_VALUE;
 							do
 								b = buffer[++p];
 							while (((b - '0') & 0xff) < 10);
+							if (!expMinus) {
+								pos = p;
+								return minus ? Long.MIN_VALUE : Long.MAX_VALUE;
+							}
+							break;
 						}
 					}
 				}
@@ -1332,6 +1339,14 @@ public final class JsonReader {
 				b = buffer[++p];
 			} else if (b == '+')
 				b = buffer[++p];
+			c = b | 0x20;
+			if (c == 'i' || c == 'n') {
+				do
+					b = buffer[++p];
+				while ((((b | 0x20) - 'a') & 0xff) < 26);
+				pos = p;
+				return c == 'n' ? Double.NaN : minus ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+			}
 			if (b == '0')
 				b = buffer[++p];
 			else if ((i = (b - '0') & 0xff) < 10) {
@@ -1392,11 +1407,14 @@ public final class JsonReader {
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
 					while ((b = (buffer[++p] - '0') & 0xff) < 10) {
 						if ((exp = exp * 10 + b) > maxExp) {
-							if (!expMinus)
-								return minus ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
 							do
 								b = buffer[++p];
 							while (((b - '0') & 0xff) < 10);
+							if (!expMinus) {
+								pos = p;
+								return minus ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+							}
+							break;
 						}
 					}
 				}
@@ -1438,6 +1456,7 @@ public final class JsonReader {
 					do
 						b = buffer[++p];
 					while ((((b | 0x20) - 'a') & 0xff) < 26);
+					pos = p;
 					return c == 'n' ? Double.NaN : minus ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
 				}
 			}
@@ -1512,11 +1531,14 @@ public final class JsonReader {
 					final int maxExp = expMinus ? (expFrac + 0x7FFF_FFF7) / 10 : 308 - expFrac;
 					while ((b = (buffer[++p] - '0') & 0xff) < 10) {
 						if ((exp = exp * 10 + b) > maxExp) {
-							if (!expMinus)
-								return minus ? NEGATIVE_INFINITY : POSITIVE_INFINITY;
 							do
 								b = buffer[++p];
 							while (((b - '0') & 0xff) < 10);
+							if (!expMinus) {
+								pos = p;
+								return minus ? NEGATIVE_INFINITY : POSITIVE_INFINITY;
+							}
+							break;
 						}
 					}
 				}
