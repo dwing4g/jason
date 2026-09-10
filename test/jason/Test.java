@@ -318,6 +318,9 @@ public final class Test {
 		assertEquals(Double.NaN, a.get(2));
 		assertEquals(0x1234567890abcdefL, a.get(3));
 		assertEquals(-1, a.get(4));
+
+		assertEquals(0xabcdef, JsonReader.local().buf("0xabcdef").parseInt());
+		assertEquals(0x1234567890abcdefL, JsonReader.local().buf("0x1234567890abcdef").parseLong());
 	}
 
 	static class H {

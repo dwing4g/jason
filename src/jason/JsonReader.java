@@ -1130,14 +1130,35 @@ public final class JsonReader {
 
 		try {
 			b = buffer[p];
-			if (b == '-') {
-				minus = true;
+			if (((b - '0') & 0xff) >= 10) {
+				if (b == '-') {
+					minus = true;
+					b = buffer[++p];
+				} else if (b == '+')
+					b = buffer[++p];
+				c = b | 0x20;
+				if (c == 'i' || c == 'n') { // Infinity NaN
+					do
+						b = buffer[++p];
+					while ((((b | 0x20) - 'a') & 0xff) < 26);
+					pos = p;
+					return c == 'n' ? 0 : minus ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+				}
+			}
+			if (b == '0') {
 				b = buffer[++p];
-			} else if (b == '+')
-				b = buffer[++p];
-			if (b == '0')
-				b = buffer[++p];
-			else if ((i = (b - '0') & 0xff) < 10) {
+				if ((b | 0x20) == 'x') { // 0x
+					for (; ; ) {
+						b = buffer[++p];
+						if ((c = (b - '0') & 0xff) < 10)
+							i = i * 16 + c;
+						else if ((c = ((b | 0x20) - 'a') & 0xff) < 6)
+							i = i * 16 + c + 10;
+						else
+							break;
+					}
+				}
+			} else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
 					if (i >= 0xCCC_CCCC) { // 0xCCC_CCCC * 10 = 0x7FFF_FFF8
 						d = i;
@@ -1232,14 +1253,35 @@ public final class JsonReader {
 
 		try {
 			b = buffer[p];
-			if (b == '-') {
-				minus = true;
+			if (((b - '0') & 0xff) >= 10) {
+				if (b == '-') {
+					minus = true;
+					b = buffer[++p];
+				} else if (b == '+')
+					b = buffer[++p];
+				c = b | 0x20;
+				if (c == 'i' || c == 'n') { // Infinity NaN
+					do
+						b = buffer[++p];
+					while ((((b | 0x20) - 'a') & 0xff) < 26);
+					pos = p;
+					return c == 'n' ? 0 : minus ? Long.MIN_VALUE : Long.MAX_VALUE;
+				}
+			}
+			if (b == '0') {
 				b = buffer[++p];
-			} else if (b == '+')
-				b = buffer[++p];
-			if (b == '0')
-				b = buffer[++p];
-			else if ((i = (b - '0') & 0xff) < 10) {
+				if ((b | 0x20) == 'x') { // 0x
+					for (; ; ) {
+						b = buffer[++p];
+						if ((c = (b - '0') & 0xff) < 10)
+							i = i * 16 + c;
+						else if ((c = ((b | 0x20) - 'a') & 0xff) < 6)
+							i = i * 16 + c + 10;
+						else
+							break;
+					}
+				}
+			} else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
 					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
 						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8

@@ -556,10 +556,9 @@ public final class JsonWriter {
 				Object subObj = null;
 				int type = fieldMeta.type;
 				long offset = fieldMeta.offset;
-				if (type > TYPE_DOUBLE && (subObj = unsafe.getObject(obj, offset)) == null && !writeNull)
+				if (type > TYPE_DOUBLE && (type == TYPE_POS || (subObj = unsafe.getObject(obj, offset)) == null && !writeNull))
 					continue;
 				byte[] name = fieldMeta.name;
-				int posBegin = pos;
 				if (comma)
 					buf[pos++] = ',';
 				if (!prettyFormat) {
@@ -630,9 +629,6 @@ public final class JsonWriter {
 					ensure(s.length() * 6 + 3); // "xxxxxx",
 					write(s, false);
 					break;
-				case TYPE_POS:
-					pos = posBegin;
-					continue;
 				default:
 					write(json, subObj);
 					break;
