@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jdt.annotation.Nullable;
+import sun.misc.Unsafe;
 import static jason.Json.*;
 
 /*
@@ -986,11 +987,11 @@ public final class JsonReader {
 		}
 	}
 
-	public @NonNull String parseString() {
+	public @Nullable String parseString() {
 		return parseString(false);
 	}
 
-	public @NonNull String parseString(boolean intern) {
+	public @Nullable String parseString(boolean intern) {
 		final byte[] buffer = buf;
 		int p = pos, b = buffer[p];
 		if (b != '"' && b != '\'') {
@@ -999,7 +1000,9 @@ public final class JsonReader {
 					pos = p;
 					if (begin < p && buffer[p - 1] == '\r')
 						p--;
-					return intern ? intern(buffer, begin, p) : newByteString(buffer, begin, p);
+					return intern ? intern(buffer, begin, p) :
+							p - begin == 4 && unsafe.getInt(buffer, Unsafe.ARRAY_BYTE_BASE_OFFSET + begin) == 0x6c6c756e
+									? null : newByteString(buffer, begin, p);
 				}
 			}
 		}

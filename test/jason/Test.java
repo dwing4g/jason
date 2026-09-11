@@ -19,6 +19,11 @@ public final class Test {
 		Map<A, Integer> m = new HashMap<>();
 	}
 
+	public static void assertNull(Object a) {
+		if (a != null)
+			throw new AssertionError("not null");
+	}
+
 	public static void assertNotNull(Object a) {
 		if (a == null)
 			throw new AssertionError("null");
@@ -335,7 +340,7 @@ public final class Test {
 		assertEquals(123, a.v);
 		a = JsonReader.local().buf("{s:null\nv:456}").parse(H.class);
 		assertNotNull(a);
-		assertEquals("null", a.s);
+		assertNull(a.s);
 		assertEquals(456, a.v);
 	}
 
