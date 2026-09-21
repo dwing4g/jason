@@ -270,11 +270,13 @@ public final class JsonReader {
 					else if (b == '/') { // skip comment
 						pos--;
 						skipComment();
+						pos++;
 					}
 				}
 			} else if (b == '/') { // skip comment
 				pos--;
 				skipComment();
+				pos++;
 			}
 		}
 	}
@@ -484,6 +486,10 @@ public final class JsonReader {
 				p.pos = pos;
 				break;
 			case TYPE_CUSTOM:
+				if (b == 'n') {
+					unsafe.putObject(obj, offset, null);
+					break;
+				}
 				Object subObj = unsafe.getObject(obj, offset);
 				if (subObj != null) {
 					Class<?> subClass = subObj.getClass();
@@ -1096,7 +1102,7 @@ public final class JsonReader {
 					t[n++] = (char)parseHex4(buffer, p);
 					p += 4;
 				} else
-					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b);
+					t[n++] = (char)(b >= 0x20 ? ESCAPE[b - 0x20] : b & 0xff);
 			} else if (b < 0x80)
 				t[n++] = (char)b; // 0xxx xxxx
 			else if (b > 0xdf) {
@@ -1392,9 +1398,20 @@ public final class JsonReader {
 				pos = p;
 				return c == 'n' ? Double.NaN : minus ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
 			}
-			if (b == '0')
+			if (b == '0') {
 				b = buffer[++p];
-			else if ((i = (b - '0') & 0xff) < 10) {
+				if ((b | 0x20) == 'x') { // 0x
+					for (; ; ) {
+						b = buffer[++p];
+						if ((c = (b - '0') & 0xff) < 10)
+							i = i * 16 + c;
+						else if ((c = ((b | 0x20) - 'a') & 0xff) < 6)
+							i = i * 16 + c + 10;
+						else
+							break;
+					}
+				}
+			} else if ((i = (b - '0') & 0xff) < 10) {
 				while ((c = ((b = buffer[++p]) - '0') & 0xff) < 10) {
 					if (i >= 0xCCC_CCCC_CCCC_CCCCL && (i > 0xCCC_CCCC_CCCC_CCCCL || c > 7)) {
 						d = i; // 0xCCC_CCCC_CCCC_CCCC * 10 = 0x7FFF_FFFF_FFFF_FFF8

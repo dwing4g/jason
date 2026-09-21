@@ -233,6 +233,8 @@ public final class JsonWriter {
 	}
 
 	public @NonNull JsonWriter free() { // can be reused by ensure()
+		if (localWriters.get() == this)
+			localWriters.remove();
 		for (Block block = tail.next; ; block = block.next) {
 			allocator.free(ensureNonNull(block));
 			if (block == tail)
