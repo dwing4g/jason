@@ -260,12 +260,12 @@ public final class JsonReader {
 					if (c == '\\')
 						pos++;
 			} else if ((b | 0x20) == '{') { // [:0x5B | 0x20 = {:0x7B
-				for (int level = 0; (b = buf[pos++] | 0x20) != '}' || --level >= 0; ) { // ]:0x5D | 0x20 = }:0x7D
+				for (int level = 0; (c = (b = buf[pos++]) | 0x20) != '}' || --level >= 0; ) { // ]:0x5D | 0x20 = }:0x7D
 					if (b == '"' || b == '\'') { // '"' = 0x22; '\'' = 0x27
 						while ((c = buf[pos++]) != b)
 							if (c == '\\')
 								pos++;
-					} else if (b == '{') // [:0x5B | 0x20 = {:0x7B
+					} else if (c == '{') // [:0x5B | 0x20 = {:0x7B
 						level++;
 					else if (b == '/') { // skip comment
 						pos--;
